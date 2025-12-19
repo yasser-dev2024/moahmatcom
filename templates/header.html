@@ -22,12 +22,15 @@
           مرحبًا، <strong class="text-gold">{{ request.user.username }}</strong>
         </span>
 
-        <a
-          href="/accounts/logout/"
-          class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-bold transition"
-        >
-          تسجيل خروج
-        </a>
+        <form method="post" action="/accounts/logout/" class="inline">
+          {% csrf_token %}
+          <button
+            type="submit"
+            class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-bold transition"
+          >
+            تسجيل خروج
+          </button>
+        </form>
       {% else %}
         <a href="/accounts/login/" class="hover:text-gold">
           تسجيل الدخول
@@ -68,12 +71,15 @@
           مرحبًا، <strong class="text-gold">{{ request.user.username }}</strong>
         </span>
 
-        <a
-          href="/accounts/logout/"
-          class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-center font-bold transition"
-        >
-          تسجيل خروج
-        </a>
+        <form method="post" action="/accounts/logout/">
+          {% csrf_token %}
+          <button
+            type="submit"
+            class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-center font-bold transition"
+          >
+            تسجيل خروج
+          </button>
+        </form>
       {% else %}
         <a href="/accounts/login/" class="hover:text-gold">
           تسجيل الدخول

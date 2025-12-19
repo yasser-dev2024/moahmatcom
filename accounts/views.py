@@ -1,7 +1,8 @@
 from django.shortcuts import render, redirect
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.views.decorators.http import require_http_methods
 
 User = get_user_model()
 
@@ -57,3 +58,12 @@ def login_view(request):
             return redirect('login')
 
     return render(request, 'accounts-templates/login.html')
+
+
+@require_http_methods(["GET", "POST"])
+def logout_view(request):
+    """
+    تسجيل الخروج (يدعم GET و POST لتفادي 405)
+    """
+    logout(request)
+    return redirect('/')
