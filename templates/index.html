@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>مكتب العدالة للمحاماة</title>
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gold: '#D4AF37',
+            dark: '#0B0F1A',
+            card: '#121826'
+          },
+          fontFamily: {
+            cairo: ['Cairo', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- ================= DESKTOP FIX ONLY ================= -->
+  <style>
+    @media (min-width: 1024px) {
+
+      .container-desktop {
+        max-width: 1800px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .hero-desktop {
+        padding-top: 120px;
+        padding-bottom: 120px;
+      }
+
+      .hero-buttons {
+        flex-direction: row !important;
+        justify-content: center;
+      }
+
+      .about-desktop {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 60px;
+        align-items: center;
+        text-align: right;
+      }
+
+      .services-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 32px;
+      }
+
+      .why-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 40px;
+      }
+    }
+  </style>
+</head>
+
+<body class="bg-dark text-white font-cairo">
+
+<!-- ================= HEADER (INCLUDE) ================= -->
+{% include "header.html" %}
+
+<!-- ================= HERO ================= -->
+<section class="px-6 hero-desktop text-center">
+  <div class="container-desktop space-y-6">
+    <div class="inline-flex items-center gap-2 bg-card px-4 py-2 rounded-full text-sm text-gray-300 mx-auto">
+      🛡️ أكثر من 20 عاماً من الخبرة القانونية
+    </div>
+
+    <h1 class="text-4xl lg:text-5xl font-extrabold leading-tight">
+      حماية حقوقك <br>
+      <span class="text-gold">بخبرة واحترافية</span>
+    </h1>
+
+    <p class="text-gray-400 leading-relaxed max-w-2xl mx-auto">
+      نقدم لك خدمات قانونية متميزة في جميع المجالات، مع فريق من
+      المحامين المتخصصين الملتزمين بتحقيق العدالة وحماية مصالحك.
+    </p>
+
+    <div class="flex flex-col gap-4 hero-buttons">
+      <a href="#" class="bg-gold text-black font-bold py-4 px-10 rounded-xl">
+        ← احجز استشارة مجانية
+      </a>
+      <a href="#" class="border border-gold text-gold py-4 px-10 rounded-xl">
+        تعرف على خدماتنا
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ABOUT ================= -->
+<section class="px-6 py-20">
+  <div class="container-desktop about-desktop">
+    <div class="space-y-6">
+      <h2 class="text-gold text-sm">من نحن</h2>
+      <h3 class="text-3xl font-bold">
+        مكتب محاماة رائد <span class="text-gold">بخبرة تتجاوز العقدين</span>
+      </h3>
+      <p class="text-gray-400 leading-loose">
+        تأسس مكتب العدالة للمحاماة والاستشارات القانونية ليكون شريكاً
+        موثوقاً في حماية حقوقكم ومصالحكم. نؤمن بأن كل قضية تستحق
+        الاهتمام والعناية الكاملة.
+      </p>
+    </div>
+
+    <ul class="space-y-4">
+      <li class="flex items-center gap-3">✅ فريق متخصص في مختلف المجالات</li>
+      <li class="flex items-center gap-3">✅ سرية تامة في جميع القضايا</li>
+      <li class="flex items-center gap-3">✅ متابعة مستمرة للتشريعات</li>
+      <li class="flex items-center gap-3">✅ أسعار تنافسية وشفافة</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= SERVICES ================= -->
+<section class="px-6 py-20">
+  <div class="container-desktop space-y-14">
+
+    <div class="text-center space-y-2">
+      <p class="text-gold text-sm">خدماتنا القانونية</p>
+      <h2 class="text-3xl font-bold">مجالات تخصصنا</h2>
+      <p class="text-gray-400">
+        نقدم مجموعة شاملة من الخدمات القانونية لتلبية احتياجاتكم
+      </p>
+    </div>
+
+<div class="services-grid flex flex-col space-y-6 lg:space-y-0">
+  
+  <div class="bg-card border border-gold rounded-3xl p-8 space-y-6">
+    <div class="bg-gold text-black w-14 h-14 rounded-xl flex items-center justify-center text-2xl">
+      💼
+    </div>
+    <h3 class="text-xl font-bold">القضايا التجارية</h3>
+    <p class="text-gray-400">
+      استشارات قانونية شاملة للشركات والمؤسسات التجارية
+    </p>
+    <a href="#" class="text-gold font-semibold">
+      اعرف المزيد ←
+    </a>
+  </div>
+
+  <div class="bg-card rounded-3xl p-8 space-y-6">
+    <div class="bg-gold text-black w-14 h-14 rounded-xl flex items-center justify-center text-2xl">
+      🏢
+    </div>
+    <h3 class="text-xl font-bold">القضايا العقارية</h3>
+    <p class="text-gray-400">
+      حل النزاعات العقارية وتوثيق العقود
+    </p>
+    <a href="#" class="text-gold font-semibold">
+      اعرف المزيد ←
+    </a>
+  </div>
+
+  <div class="bg-card rounded-3xl p-8 space-y-6">
+    <div class="bg-gold text-black w-14 h-14 rounded-xl flex items-center justify-center text-2xl">
+      ⚖️
+    </div>
+    <h3 class="text-xl font-bold">القضايا الجنائية</h3>
+    <p class="text-gray-400">
+      دفاع قانوني احترافي في القضايا الجنائية
+    </p>
+    <a href="#" class="text-gold font-semibold">
+      اعرف المزيد ←
+    </a>
+  </div>
+
+  <div class="bg-card rounded-3xl p-8 space-y-6">
+    <div class="bg-gold text-black w-14 h-14 rounded-xl flex items-center justify-center text-2xl">
+      👨‍👩‍👧
+    </div>
+    <h3 class="text-xl font-bold">قضايا الأسرة</h3>
+    <p class="text-gray-400">
+      تعامل قانوني حساس في قضايا الأسرة
+    </p>
+    <a href="#" class="text-gold font-semibold">
+      اعرف المزيد ←
+    </a>
+  </div>
+
+</div>
+
+  </div>
+</section>
+
+<!-- ================= WHY US ================= -->
+<section class="px-6 py-20 text-center">
+  <div class="container-desktop space-y-12">
+    <div>
+      <p class="text-gold text-sm">لماذا تختارنا</p>
+      <h2 class="text-3xl font-bold">ما يميزنا</h2>
+      <p class="text-gray-400 mt-2">
+        نسعى دائماً لتقديم أفضل الخدمات القانونية بأعلى معايير الجودة
+      </p>
+    </div>
+
+    <div class="why-grid">
+      <div class="space-y-4">
+        <div class="mx-auto bg-card w-16 h-16 rounded-2xl flex items-center justify-center text-gold text-2xl">🛡️</div>
+        <h3 class="font-bold">الخبرة والكفاءة</h3>
+        <p class="text-gray-400">فريق بخبرة تزيد عن 20 عاماً</p>
+      </div>
+
+      <div class="space-y-4">
+        <div class="mx-auto bg-card w-16 h-16 rounded-2xl flex items-center justify-center text-gold text-2xl">⏱️</div>
+        <h3 class="font-bold">الاستجابة السريعة</h3>
+        <p class="text-gray-400">الرد خلال 24 ساعة</p>
+      </div>
+
+      <div class="space-y-4">
+        <div class="mx-auto bg-card w-16 h-16 rounded-2xl flex items-center justify-center text-gold text-2xl">⚖️</div>
+        <h3 class="font-bold">الاحترافية</h3>
+        <p class="text-gray-400">التزام كامل بأخلاقيات المهنة</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= STATS ================= -->
+<section class="px-6 py-20">
+  <div class="container-desktop">
+    <div class="bg-card rounded-3xl p-14 text-center space-y-4">
+      <div class="text-gold text-5xl font-extrabold">+20</div>
+      <h3 class="text-xl font-bold">سنوات من التميز</h3>
+      <p class="text-gray-400">في خدمة العدالة وحماية الحقوق</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CONTACT ================= -->
+<section class="px-6 py-20">
+  <div class="container-desktop space-y-12">
+
+    <h2 class="text-3xl font-bold text-center">
+      نحن هنا <span class="text-gold">لمساعدتك</span>
+    </h2>
+
+    <div class="text-center text-gray-300 space-y-2">
+      <p>📞 +966 50 000 0000</p>
+      <p>✉️ info@aladalah-law.com</p>
+      <p>📍 الرياض، المملكة العربية السعودية</p>
+      <p>⏰ الأحد - الخميس | 9 ص - 6 م</p>
+    </div>
+
+    <form class="bg-card rounded-3xl p-8 space-y-4 max-w-xl mx-auto">
+      <h3 class="text-xl font-bold text-center">أرسل لنا رسالة</h3>
+      <input type="text" placeholder="الاسم الكامل" class="w-full p-4 rounded-xl bg-dark border border-white/10">
+      <input type="email" placeholder="البريد الإلكتروني" class="w-full p-4 rounded-xl bg-dark border border-white/10">
+      <textarea rows="4" placeholder="رسالتك" class="w-full p-4 rounded-xl bg-dark border border-white/10"></textarea>
+      <button class="w-full bg-gold text-black font-bold py-4 rounded-xl">
+        إرسال
+      </button>
+    </form>
+
+  </div>
+</section>
+
+<!-- ================= FOOTER (INCLUDE) ================= -->
+{% include "footer.html" %}
+
+</body>
+</html>

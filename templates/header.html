@@ -1,0 +1,54 @@
+<header class="bg-dark border-b border-white/10 fixed top-0 w-full z-50">
+  <div class="container-desktop mx-auto px-4 py-4 flex items-center justify-between">
+
+    <!-- LOGO -->
+    <div class="flex items-center gap-2 text-gold font-bold text-lg">
+      ⚖️ <span>مكتب العدالة للمحاماة</span>
+    </div>
+
+    <!-- DESKTOP NAV -->
+    <nav class="hidden md:flex items-center gap-8 text-sm">
+      <a href="/" class="hover:text-gold">الرئيسية</a>
+      <a href="#services" class="hover:text-gold">الخدمات</a>
+      <a href="#about" class="hover:text-gold">الفريق</a>
+      <a href="#contact" class="hover:text-gold">اتصل بنا</a>
+    </nav>
+
+    <!-- DESKTOP ACTIONS -->
+    <div class="hidden md:flex items-center gap-4">
+      <a href="#" class="text-sm hover:text-gold">تسجيل الدخول</a>
+      <a href="#" class="bg-gold text-black px-4 py-2 rounded-lg text-sm font-bold">
+        إنشاء حساب
+      </a>
+    </div>
+
+    <!-- MOBILE MENU BUTTON -->
+    <button
+      class="md:hidden text-2xl"
+      onclick="document.getElementById('mobileMenu').classList.toggle('hidden')"
+    >
+      ☰
+    </button>
+
+  </div>
+
+  <!-- MOBILE MENU -->
+  <div id="mobileMenu" class="md:hidden hidden bg-dark border-t border-white/10">
+    <nav class="flex flex-col px-6 py-4 gap-4 text-sm">
+      <a href="/" class="hover:text-gold">الرئيسية</a>
+      <a href="#services" class="hover:text-gold">الخدمات</a>
+      <a href="#about" class="hover:text-gold">الفريق</a>
+      <a href="#contact" class="hover:text-gold">اتصل بنا</a>
+
+      <hr class="border-white/10 my-2">
+
+      <a href="#" class="hover:text-gold">تسجيل الدخول</a>
+      <a href="#" class="bg-gold text-black px-4 py-2 rounded-lg text-center font-bold">
+        إنشاء حساب
+      </a>
+    </nav>
+  </div>
+</header>
+
+<!-- SPACER FOR FIXED HEADER -->
+<div class="h-[80px]"></div>
