@@ -3,7 +3,7 @@ Django settings for mashromoahmecom project.
 
 Arabic Language
 Riyadh Timezone
-Clean & Ready for Expansion
+Clean, Secure & Ready for Expansion
 """
 
 from pathlib import Path
@@ -51,7 +51,7 @@ INSTALLED_APPS = [
 
 
 # --------------------------------------------------
-# AUTH USER MODEL (مهم جدًا)
+# AUTH USER MODEL (مهم جدًا للأدمن)
 # --------------------------------------------------
 AUTH_USER_MODEL = 'accounts.User'
 
@@ -61,12 +61,16 @@ AUTH_USER_MODEL = 'accounts.User'
 # --------------------------------------------------
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
+
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -78,14 +82,15 @@ ROOT_URLCONF = 'mashromoahmecom.urls'
 
 
 # --------------------------------------------------
-# TEMPLATES (مربوطة بمجلد templates الرئيسي)
+# TEMPLATES
+# --------------------------------------------------
 # C:\Users\Test2\mashromoahmecom\templates
 # --------------------------------------------------
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [
-            BASE_DIR / 'templates'
+            BASE_DIR / 'templates',
         ],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -121,13 +126,19 @@ DATABASES = {
 # PASSWORD VALIDATION
 # --------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'
+    },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
         'OPTIONS': {'min_length': 8}
     },
-    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'
+    },
 ]
 
 
@@ -135,8 +146,13 @@ AUTH_PASSWORD_VALIDATORS = [
 # INTERNATIONALIZATION
 # --------------------------------------------------
 LANGUAGE_CODE = 'ar'
-LANGUAGES = [('ar', 'Arabic')]
+
+LANGUAGES = [
+    ('ar', 'Arabic'),
+]
+
 TIME_ZONE = 'Asia/Riyadh'
+
 USE_I18N = True
 USE_L10N = True
 USE_TZ = True
@@ -146,20 +162,24 @@ USE_TZ = True
 # STATIC FILES
 # --------------------------------------------------
 STATIC_URL = '/static/'
+
+# المكان الذي سيُجمع فيه static عند تنفيذ collectstatic
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# مجلد التطوير
 STATICFILES_DIRS = [
-    BASE_DIR / 'static'
+    BASE_DIR / 'static',
 ]
 
 
 # --------------------------------------------------
-# MEDIA
+# MEDIA FILES
 # --------------------------------------------------
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 
 # --------------------------------------------------
-# DEFAULT FIELD
+# DEFAULT PRIMARY KEY
 # --------------------------------------------------
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
