@@ -1,33 +1,19 @@
 from django.contrib import admin
-from .models import Case
+from .models import LegalService
 
 
-@admin.register(Case)
-class CaseAdmin(admin.ModelAdmin):
-    """
-    Admin configuration for Legal Cases
-    """
+@admin.register(LegalService)
+class LegalServiceAdmin(admin.ModelAdmin):
+    list_display = ("title", "service_type", "is_active", "order")
+    list_filter = ("service_type", "is_active")
+    search_fields = ("title", "description")
+    ordering = ("order",)
 
-    list_display = (
-        'title',
-        'client',
-        'lawyer',
-        'status',
-        'created_at',
-    )
-
-    list_filter = (
-        'status',
-        'created_at',
-    )
-
-    search_fields = (
-        'title',
-        'description',
-        'client__username',
-        'lawyer__username',
-    )
-
-    ordering = (
-        '-created_at',
+    fieldsets = (
+        ("بيانات الكرت", {
+            "fields": ("title", "description", "icon", "image")
+        }),
+        ("الإعدادات", {
+            "fields": ("service_type", "is_active", "order")
+        }),
     )

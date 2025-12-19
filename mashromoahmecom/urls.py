@@ -7,7 +7,8 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
-from operations.views import index  # الصفحة الرئيسية
+# 🔴 التعديل هنا فقط
+from legal.views import home as index  # الصفحة الرئيسية (تعرض الخدمات)
 
 
 urlpatterns = [

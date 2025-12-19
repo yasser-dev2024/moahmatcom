@@ -140,61 +140,42 @@
       </p>
     </div>
 
-<div class="services-grid flex flex-col space-y-6 lg:space-y-0">
-  
-  <div class="bg-card border border-gold rounded-3xl p-8 space-y-6">
-    <div class="bg-gold text-black w-14 h-14 rounded-xl flex items-center justify-center text-2xl">
-      💼
-    </div>
-    <h3 class="text-xl font-bold">القضايا التجارية</h3>
-    <p class="text-gray-400">
-      استشارات قانونية شاملة للشركات والمؤسسات التجارية
-    </p>
-    <a href="#" class="text-gold font-semibold">
-      اعرف المزيد ←
-    </a>
-  </div>
+    <!-- ✅ DYNAMIC SERVICES GRID (from LegalService) -->
+    <div class="services-grid flex flex-col space-y-6 lg:space-y-0">
 
-  <div class="bg-card rounded-3xl p-8 space-y-6">
-    <div class="bg-gold text-black w-14 h-14 rounded-xl flex items-center justify-center text-2xl">
-      🏢
-    </div>
-    <h3 class="text-xl font-bold">القضايا العقارية</h3>
-    <p class="text-gray-400">
-      حل النزاعات العقارية وتوثيق العقود
-    </p>
-    <a href="#" class="text-gold font-semibold">
-      اعرف المزيد ←
-    </a>
-  </div>
+      {% for service in services %}
+      <div class="bg-card rounded-3xl p-8 space-y-6 border border-white/10 hover:border-gold transition hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(212,175,55,0.12)]">
 
-  <div class="bg-card rounded-3xl p-8 space-y-6">
-    <div class="bg-gold text-black w-14 h-14 rounded-xl flex items-center justify-center text-2xl">
-      ⚖️
-    </div>
-    <h3 class="text-xl font-bold">القضايا الجنائية</h3>
-    <p class="text-gray-400">
-      دفاع قانوني احترافي في القضايا الجنائية
-    </p>
-    <a href="#" class="text-gold font-semibold">
-      اعرف المزيد ←
-    </a>
-  </div>
+        <div class="flex items-center justify-between">
+          <div class="bg-gold text-black w-14 h-14 rounded-xl flex items-center justify-center text-2xl">
+            {{ service.icon|default:"⚖️" }}
+          </div>
 
-  <div class="bg-card rounded-3xl p-8 space-y-6">
-    <div class="bg-gold text-black w-14 h-14 rounded-xl flex items-center justify-center text-2xl">
-      👨‍👩‍👧
-    </div>
-    <h3 class="text-xl font-bold">قضايا الأسرة</h3>
-    <p class="text-gray-400">
-      تعامل قانوني حساس في قضايا الأسرة
-    </p>
-    <a href="#" class="text-gold font-semibold">
-      اعرف المزيد ←
-    </a>
-  </div>
+          <span class="text-xs px-3 py-1 rounded-full border border-gold text-gold bg-transparent">
+            {{ service.get_service_type_display }}
+          </span>
+        </div>
 
-</div>
+        <h3 class="text-xl font-bold">
+          {{ service.title }}
+        </h3>
+
+        <p class="text-gray-400">
+          {{ service.description|truncatewords:18 }}
+        </p>
+
+        <a href="#" class="text-gold font-semibold inline-flex items-center gap-2">
+          اعرف المزيد <span>←</span>
+        </a>
+
+      </div>
+      {% empty %}
+      <div class="bg-card rounded-3xl p-8 text-center text-gray-400 border border-white/10">
+        لا توجد خدمات/قضايا مضافة حالياً — أضف من لوحة التحكم وسيظهرون هنا تلقائياً ✅
+      </div>
+      {% endfor %}
+
+    </div>
 
   </div>
 </section>
