@@ -1,39 +1,50 @@
 <header class="bg-dark border-b border-white/10 fixed top-0 w-full z-50">
-  <div class="container-desktop mx-auto px-4 py-4 flex items-center justify-between">
+  <div class="container-desktop mx-auto px-4 py-3 flex items-center justify-between">
 
     <!-- LOGO -->
-    <div class="flex items-center gap-2 text-gold font-bold text-lg">
-      ⚖️ <span>عبدالمجيد الزمزمي للمحاماة والاستشارات القانونية</span>
+    <div class="flex items-center gap-3">
+      <img
+        src="/media/legal_services/logo.png"
+        alt="شعار مكتب عبدالمجيد الزمزمي"
+        class="
+          w-12 h-12 sm:w-14 sm:h-14
+          object-cover object-top
+          bg-white rounded-md p-1
+          drop-shadow-[0_0_6px_rgba(212,175,55,0.5)]
+        "
+      />
+
+      <span class="text-gold font-bold text-sm sm:text-base leading-tight">
+        عبدالمجيد الزمزمي للمحاماة<br class="hidden sm:block">
+        <span class="text-xs sm:text-sm font-normal text-white/80">
+          والاستشارات القانونية
+        </span>
+      </span>
     </div>
 
     <!-- DESKTOP NAV -->
-    <nav class="hidden md:flex items-center gap-8 text-sm">
+    <nav class="hidden md:flex items-center gap-6 text-sm">
       <a href="/" class="hover:text-gold">الرئيسية</a>
       <a href="#services" class="hover:text-gold">من نحن</a>
       <a href="#about" class="hover:text-gold">رؤيتنا</a>
       <a href="#contact" class="hover:text-gold">خدمات الأفراد</a>
-       <a href="#contact" class="hover:text-gold">خدمات الشركات</a>
-       <a href="#contact" class="hover:text-gold">خدمات الأوقاف</a>
+      <a href="#contact" class="hover:text-gold">خدمات الشركات</a>
+      <a href="#contact" class="hover:text-gold">خدمات الأوقاف</a>
       <a href="#contact" class="hover:text-gold">خدمات التوثيق</a>
-       <a href="#contact" class="hover:text-gold">إنجازاتنا</a>
-       <a href="#contact" class="hover:text-gold">فريق العمل</a>
+      <a href="#contact" class="hover:text-gold">إنجازاتنا</a>
+      <a href="#contact" class="hover:text-gold">فريق العمل</a>
       <a href="#contact" class="hover:text-gold">قيمنا</a>
-            <a href="#contact" class="hover:text-gold">تواصل معنا</a>
-
-
-
-
+      <a href="#contact" class="hover:text-gold">تواصل معنا</a>
     </nav>
 
     <!-- DESKTOP ACTIONS -->
     <div class="hidden md:flex items-center gap-4 text-sm">
-
       {% if request.user.is_authenticated %}
         <span class="text-white/80">
           مرحبًا، <strong class="text-gold">{{ request.user.username }}</strong>
         </span>
 
-        <form method="post" action="/accounts/logout/" class="inline">
+        <form method="post" action="/accounts/logout/">
           {% csrf_token %}
           <button
             type="submit"
@@ -53,7 +64,6 @@
           إنشاء حساب
         </a>
       {% endif %}
-
     </div>
 
     <!-- MOBILE MENU BUTTON -->
@@ -69,10 +79,9 @@
   <!-- MOBILE MENU -->
   <div id="mobileMenu" class="md:hidden hidden bg-dark border-t border-white/10">
     <nav class="flex flex-col px-6 py-4 gap-4 text-sm">
-
       <a href="/" class="hover:text-gold">الرئيسية</a>
       <a href="#services" class="hover:text-gold">من نحن</a>
-      <a href="#services" class="hover:text-gold">رؤيتنا</a>
+      <a href="#about" class="hover:text-gold">رؤيتنا</a>
       <a href="#services" class="hover:text-gold">رسالتنا</a>
       <a href="#about" class="hover:text-gold">خدمات الأفراد</a>
       <a href="#contact" class="hover:text-gold">خدمات الشركات</a>
@@ -82,8 +91,6 @@
       <a href="#contact" class="hover:text-gold">فريق العمل</a>
       <a href="#contact" class="hover:text-gold">قيمنا</a>
       <a href="#contact" class="hover:text-gold">تواصل معنا</a>
-
-
 
       <hr class="border-white/10 my-2">
 
@@ -96,7 +103,7 @@
           {% csrf_token %}
           <button
             type="submit"
-            class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-center font-bold transition"
+            class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-bold transition"
           >
             تسجيل خروج
           </button>
@@ -107,12 +114,11 @@
         </a>
         <a
           href="/accounts/register/"
-          class="bg-gold text-black px-4 py-2 rounded-lg text-center font-bold"
+          class="bg-gold text-black px-4 py-2 rounded-lg font-bold text-center"
         >
           إنشاء حساب
         </a>
       {% endif %}
-
     </nav>
   </div>
 </header>
