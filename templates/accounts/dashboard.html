@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>صفحة المستخدم</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gold: '#D4AF37',
+            dark: '#0B0F1A',
+            card: '#121826'
+          },
+          fontFamily: {
+            cairo: ['Cairo', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="bg-dark text-white font-cairo min-h-screen">
+
+<!-- ================= HEADER ================= -->
+{% include "header.html" %}
+
+<!-- spacer -->
+<div class="h-[80px]"></div>
+
+<!-- ================= DASHBOARD ================= -->
+<div class="container-desktop mx-auto px-4 py-10 space-y-10">
+
+  <!-- ===== العنوان ===== -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <h1 class="text-2xl font-bold">
+      مرحبًا <span class="text-gold">{{ request.user.username }}</span>
+    </h1>
+
+    <a href="{% url 'profile_update' %}"
+       class="bg-gold text-black px-6 py-3 rounded-xl font-bold hover:opacity-90 transition">
+      ✏️ تعديل البيانات
+    </a>
+  </div>
+
+  <!-- ===== حالة البيانات ===== -->
+  <div class="bg-card rounded-2xl p-6 border border-white/10 space-y-3">
+    {% if profile.full_name and profile.national_id %}
+      <p class="text-green-400 font-bold">✅ بياناتك مكتملة</p>
+    {% else %}
+      <p class="text-yellow-400 font-bold">⚠️ يرجى استكمال بياناتك</p>
+    {% endif %}
+  </div>
+
+  <!-- ===== البيانات الشخصية ===== -->
+  <div class="bg-card rounded-3xl p-6 sm:p-8 space-y-6 border border-white/10">
+
+    <h2 class="text-xl font-bold text-gold">👤 بياناتك الشخصية</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm sm:text-base">
+
+      <div>
+        <p class="text-gray-400">الاسم الكامل:</p>
+        <p class="font-bold">
+          {{ profile.full_name|default:"— لم يتم الإدخال —" }}
+        </p>
+      </div>
+
+      <div>
+        <p class="text-gray-400">السجل المدني:</p>
+        <p class="font-bold">
+          {{ profile.national_id|default:"— لم يتم الإدخال —" }}
+        </p>
+      </div>
+
+      <div>
+        <p class="text-gray-400">رقم الجوال:</p>
+        <p class="font-bold">
+          {{ request.user.phone_number|default:"— لم يتم الإدخال —" }}
+        </p>
+      </div>
+
+      <div>
+        <p class="text-gray-400">العنوان الوطني:</p>
+        <p class="font-bold">
+          {{ profile.address|default:"— لم يتم الإدخال —" }}
+        </p>
+      </div>
+
+    </div>
+
+    <!-- صورة الهوية -->
+    <div class="pt-4">
+      <p class="text-gray-400 mb-2">صورة البطاقة:</p>
+
+      {% if profile.id_card_image %}
+        <img
+          src="{{ profile.id_card_image.url }}"
+          alt="صورة الهوية"
+          class="w-40 rounded-xl border border-gold/40"
+        >
+      {% else %}
+        <p class="text-red-400 text-sm">لم يتم رفع صورة الهوية</p>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- ===== القضايا ===== -->
+  <div class="bg-card rounded-3xl p-6 sm:p-8 space-y-6 border border-white/10">
+
+    <!-- عنوان + زر -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <h2 class="text-xl font-bold text-gold flex items-center gap-2">
+        ⚖️ قضاياي
+      </h2>
+
+      <!-- ✅ زر رفع قضية جديدة -->
+      <a href="{% url 'case_create' %}"
+         class="bg-gold text-black px-6 py-3 rounded-xl font-bold hover:opacity-90 transition flex items-center gap-2">
+        ➕ رفع قضية جديدة
+      </a>
+    </div>
+
+    <!-- محتوى القضايا -->
+    {% if cases %}
+      <div class="space-y-4">
+        {% for case in cases %}
+          <div class="bg-dark rounded-xl p-4 border border-white/10">
+            <p class="font-bold">{{ case.title }}</p>
+            <p class="text-sm text-gray-400">
+              رقم القضية: {{ case.case_number }} |
+              التاريخ: {{ case.created_at|date:"Y-m-d" }}
+            </p>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-gray-400">
+        لا توجد قضايا مضافة حتى الآن.
+      </p>
+    {% endif %}
+
+  </div>
+
+</div>
+
+<!-- ================= FOOTER ================= -->
+{% include "footer.html" %}
+
+</body>
+</html>

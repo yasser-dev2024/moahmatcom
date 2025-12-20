@@ -3,12 +3,20 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.views.decorators.http import require_http_methods
+from django.contrib.auth.decorators import login_required
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
+from django.utils import timezone
+import uuid
+
+from .models import UserProfile, Case
 
 User = get_user_model()
 
 
+# --------------------------------------------------
+# Register
+# --------------------------------------------------
 def register_view(request):
     """
     إنشاء حساب جديد مع تطبيق الشروط ومنع التكرار
@@ -20,16 +28,10 @@ def register_view(request):
         password1 = request.POST.get('password1')
         password2 = request.POST.get('password2')
 
-        # ----------------------------
-        # التحقق من الحقول المطلوبة
-        # ----------------------------
         if not username or not password1 or not password2:
             messages.error(request, 'يرجى تعبئة جميع الحقول المطلوبة')
             return redirect('register')
 
-        # ----------------------------
-        # شروط اسم المستخدم
-        # ----------------------------
         if len(username) < 4:
             messages.error(request, 'اسم المستخدم يجب ألا يقل عن 4 أحرف')
             return redirect('register')
@@ -42,9 +44,6 @@ def register_view(request):
             messages.error(request, 'اسم المستخدم مستخدم مسبقًا')
             return redirect('register')
 
-        # ----------------------------
-        # التحقق من البريد الإلكتروني
-        # ----------------------------
         if email:
             try:
                 validate_email(email)
@@ -56,9 +55,6 @@ def register_view(request):
                 messages.error(request, 'البريد الإلكتروني مستخدم مسبقًا')
                 return redirect('register')
 
-        # ----------------------------
-        # التحقق من رقم الجوال
-        # ----------------------------
         if phone_number:
             if not phone_number.isdigit():
                 messages.error(request, 'رقم الجوال يجب أن يحتوي على أرقام فقط')
@@ -68,9 +64,6 @@ def register_view(request):
                 messages.error(request, 'رقم الجوال مستخدم مسبقًا')
                 return redirect('register')
 
-        # ----------------------------
-        # التحقق من كلمة المرور
-        # ----------------------------
         if password1 != password2:
             messages.error(request, 'كلمتا المرور غير متطابقتين')
             return redirect('register')
@@ -79,9 +72,6 @@ def register_view(request):
             messages.error(request, 'كلمة المرور يجب ألا تقل عن 8 أحرف')
             return redirect('register')
 
-        # ----------------------------
-        # إنشاء المستخدم
-        # ----------------------------
         user = User.objects.create_user(
             username=username,
             email=email,
@@ -96,10 +86,10 @@ def register_view(request):
     return render(request, 'accounts-templates/register.html')
 
 
+# --------------------------------------------------
+# Login
+# --------------------------------------------------
 def login_view(request):
-    """
-    تسجيل الدخول
-    """
     if request.method == 'POST':
         username = request.POST.get('username', '').strip()
         password = request.POST.get('password')
@@ -110,7 +100,7 @@ def login_view(request):
 
         user = authenticate(request, username=username, password=password)
 
-        if user is not None:
+        if user:
             login(request, user)
             return redirect('index')
 
@@ -120,10 +110,91 @@ def login_view(request):
     return render(request, 'accounts-templates/login.html')
 
 
+# --------------------------------------------------
+# Logout
+# --------------------------------------------------
 @require_http_methods(["GET", "POST"])
 def logout_view(request):
-    """
-    تسجيل الخروج
-    """
     logout(request)
     return redirect('/')
+
+
+# --------------------------------------------------
+# User Dashboard
+# --------------------------------------------------
+@login_required
+def user_dashboard(request):
+    """
+    صفحة المستخدم – عرض البيانات والقضايا
+    """
+    profile = getattr(request.user, 'profile', None)
+
+    return render(request, 'accounts/dashboard.html', {
+        'profile': profile,
+        'cases': request.user.account_cases.all(),   # ✔️ الصحيح
+        'documents': request.user.documents.all(),
+    })
+
+
+# --------------------------------------------------
+# Profile Update
+# --------------------------------------------------
+@login_required
+def profile_update_view(request):
+    profile, created = UserProfile.objects.get_or_create(
+        user=request.user
+    )
+
+    if request.method == 'POST':
+        profile.full_name = request.POST.get('full_name', '').strip()
+        profile.national_id = request.POST.get('national_id', '').strip()
+        profile.address = request.POST.get('address', '').strip()
+
+        if 'id_card_image' in request.FILES:
+            profile.id_card_image = request.FILES['id_card_image']
+
+        if not profile.full_name or not profile.national_id:
+            messages.error(request, 'الاسم الكامل والسجل المدني مطلوبان')
+            return redirect('profile_update')
+
+        profile.save()
+        messages.success(request, 'تم حفظ البيانات بنجاح')
+        return redirect('user_dashboard')
+
+    return render(request, 'accounts/profile_form.html', {
+        'profile': profile
+    })
+
+
+# --------------------------------------------------
+# Create Case
+# --------------------------------------------------
+@login_required
+def case_create(request):
+    """
+    رفع قضية جديدة مع توليد رقم قضية تلقائي
+    """
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        case_type = request.POST.get('case_type', 'other')
+
+        if not title or not description:
+            messages.error(request, 'عنوان القضية والوصف مطلوبان')
+            return redirect('case_create')
+
+        # 🔐 توليد رقم قضية آمن وفريد
+        case_number = f"CASE-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+
+        Case.objects.create(
+            user=request.user,
+            case_number=case_number,   # ✅ حل جذري للمشكلة
+            case_type=case_type,
+            title=title,
+            description=description,
+        )
+
+        messages.success(request, f'تم رفع القضية بنجاح (رقمها: {case_number})')
+        return redirect('user_dashboard')
+
+    return render(request, 'accounts/case_form.html')

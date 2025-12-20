@@ -1,29 +1,31 @@
 from django.contrib import admin
-from .models import Appointment
+from .models import Case
 
 
-@admin.register(Appointment)
-class AppointmentAdmin(admin.ModelAdmin):
-    """
-    Admin configuration for Appointments
-    """
-
+@admin.register(Case)
+class CaseAdmin(admin.ModelAdmin):
     list_display = (
-        'subject',
+        'title',
+        'case_type',
         'user',
-        'appointment_date',
+        'status',
         'created_at',
     )
 
     list_filter = (
-        'appointment_date',
+        'case_type',
+        'status',
+        'created_at',
     )
 
     search_fields = (
-        'subject',
+        'title',
+        'description',
+        'case_number',
         'user__username',
     )
 
-    ordering = (
-        '-appointment_date',
+    readonly_fields = (
+        'case_number',
+        'created_at',
     )

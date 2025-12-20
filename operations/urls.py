@@ -1,5 +1,6 @@
 from django.urls import path
+from .views import create_case
 
 urlpatterns = [
-    # سيتم إضافة المسارات لاحقًا
+    path('create/', create_case, name='create_case'),
 ]
