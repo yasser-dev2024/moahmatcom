@@ -8,8 +8,14 @@ class User(AbstractUser):
     الأساس لأي توسع مستقبلي (محامين – عملاء – موظفين)
     """
 
+    email = models.EmailField(
+        unique=True,
+        verbose_name="البريد الإلكتروني"
+    )
+
     phone_number = models.CharField(
         max_length=20,
+        unique=True,
         blank=True,
         null=True,
         verbose_name="رقم الجوال"

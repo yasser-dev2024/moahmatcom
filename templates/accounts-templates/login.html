@@ -1,29 +1,105 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <title>تسجيل الدخول</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <title>تسجيل الدخول</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Cairo Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gold: '#D4AF37',
+            dark: '#0B0F1A',
+            card: '#121826',
+          },
+          fontFamily: {
+            cairo: ['Cairo', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
 </head>
-<body>
 
-<h2>تسجيل الدخول</h2>
+<body class="bg-dark text-white font-cairo min-h-screen flex items-center justify-center px-4">
 
-<form method="post">
-    {% csrf_token %}
+  <!-- CARD -->
+  <div class="w-full max-w-md bg-card rounded-3xl p-6 sm:p-8 border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
 
-    <label>اسم المستخدم</label><br>
-    <input type="text" name="username" required><br><br>
+    <!-- TITLE -->
+    <div class="text-center mb-6">
+      <h2 class="text-2xl font-extrabold mb-2">
+        تسجيل <span class="text-gold">الدخول</span>
+      </h2>
+      <p class="text-sm text-gray-400">
+        أهلاً بعودتك، سعداء برؤيتك مجددًا
+      </p>
+    </div>
 
-    <label>كلمة المرور</label><br>
-    <input type="password" name="password" required><br><br>
+    <!-- FORM -->
+    <form method="post" class="space-y-4">
+      {% csrf_token %}
 
-    <button type="submit">دخول</button>
-</form>
+      <!-- USERNAME -->
+      <div>
+        <label class="block text-sm mb-1 text-gray-300">اسم المستخدم</label>
+        <input
+          type="text"
+          name="username"
+          required
+          class="w-full rounded-xl bg-dark border border-white/10 px-4 py-3 focus:outline-none focus:border-gold transition"
+        >
+      </div>
 
-{% for message in messages %}
-    <p style="color:red">{{ message }}</p>
-{% endfor %}
+      <!-- PASSWORD -->
+      <div>
+        <label class="block text-sm mb-1 text-gray-300">كلمة المرور</label>
+        <input
+          type="password"
+          name="password"
+          required
+          class="w-full rounded-xl bg-dark border border-white/10 px-4 py-3 focus:outline-none focus:border-gold transition"
+        >
+      </div>
+
+      <!-- SUBMIT -->
+      <button
+        type="submit"
+        class="w-full bg-gold text-black font-bold py-3 rounded-xl hover:brightness-110 transition"
+      >
+        دخول
+      </button>
+
+    </form>
+
+    <!-- MESSAGES -->
+    {% if messages %}
+      <div class="mt-4 space-y-2">
+        {% for message in messages %}
+          <p class="text-sm text-red-400 text-center">
+            {{ message }}
+          </p>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <!-- FOOTER -->
+    <div class="mt-6 text-center text-sm text-gray-400">
+      ليس لديك حساب؟
+      <a href="/accounts/register/" class="text-gold hover:underline">
+        إنشاء حساب جديد
+      </a>
+    </div>
+
+  </div>
 
 </body>
 </html>
