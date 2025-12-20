@@ -175,7 +175,6 @@ class Case(models.Model):
         verbose_name="رقم القضية"
     )
 
-    # ✅ التعديل المهم هنا فقط
     case_type = models.CharField(
         max_length=20,
         choices=CASE_TYPES,
@@ -198,6 +197,13 @@ class Case(models.Model):
         choices=CASE_STATUS,
         default="new",
         verbose_name="حالة القضية"
+    )
+
+    # ✅ الإضافة المطلوبة: ملاحظات المحامي (تظهر للمستخدم)
+    lawyer_notes = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="ملاحظات المحامي"
     )
 
     created_at = models.DateTimeField(

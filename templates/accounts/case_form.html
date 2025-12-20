@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>رفع قضية جديدة</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gold: '#D4AF37',
+            dark: '#0B0F1A',
+            card: '#121826'
+          },
+          fontFamily: {
+            cairo: ['Cairo', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="bg-dark text-white font-cairo min-h-screen">
+
+<!-- ================= HEADER ================= -->
+{% include "header.html" %}
+
+<div class="h-[80px]"></div>
+
+<!-- ================= CONTENT ================= -->
+<div class="max-w-3xl mx-auto px-4 py-10">
+
+  <div class="bg-card rounded-3xl p-6 sm:p-8 border border-white/10 space-y-8">
+
+    <h1 class="text-2xl font-bold text-gold flex items-center gap-2">
+      ➕ رفع قضية جديدة
+    </h1>
+
+    <!-- رسائل -->
+    {% if messages %}
+      {% for message in messages %}
+        <div class="p-4 rounded-xl text-sm
+          {% if message.tags == 'error' %} bg-red-500/10 text-red-400
+          {% else %} bg-green-500/10 text-green-400 {% endif %}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <!-- ================= FORM ================= -->
+    <form method="post" class="space-y-6">
+      {% csrf_token %}
+
+      <!-- نوع القضية -->
+      <div>
+        <label class="block mb-2 text-sm text-gray-300">نوع القضية</label>
+        <select name="case_type"
+                required
+                class="w-full bg-dark border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold">
+          <option value="">— اختر نوع القضية —</option>
+          <option value="civil">مدنية</option>
+          <option value="criminal">جنائية</option>
+          <option value="commercial">تجارية</option>
+          <option value="family">أحوال شخصية</option>
+          <option value="labor">عمالية</option>
+          <option value="other">أخرى</option>
+        </select>
+      </div>
+
+      <!-- عنوان القضية -->
+      <div>
+        <label class="block mb-2 text-sm text-gray-300">عنوان القضية</label>
+        <input type="text"
+               name="title"
+               required
+               placeholder="مثال: مطالبة مالية"
+               class="w-full bg-dark border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold">
+      </div>
+
+      <!-- وصف القضية -->
+      <div>
+        <label class="block mb-2 text-sm text-gray-300">وصف مختصر للقضية</label>
+        <textarea name="description"
+                  rows="5"
+                  required
+                  placeholder="اشرح تفاصيل القضية بشكل واضح..."
+                  class="w-full bg-dark border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold"></textarea>
+      </div>
+
+      <!-- أزرار -->
+      <div class="flex flex-col sm:flex-row gap-4 pt-4">
+
+        <button type="submit"
+                class="bg-gold text-black px-8 py-3 rounded-xl font-bold hover:opacity-90 transition">
+          🚀 إرسال القضية
+        </button>
+
+        <a href="{% url 'user_dashboard' %}"
+           class="border border-white/20 px-8 py-3 rounded-xl font-bold text-center hover:bg-white/5 transition">
+          ↩️ رجوع للداشبورد
+        </a>
+
+      </div>
+
+    </form>
+
+  </div>
+
+</div>
+
+<!-- ================= FOOTER ================= -->
+{% include "footer.html" %}
+
+</body>
+</html>

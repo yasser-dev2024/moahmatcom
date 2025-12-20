@@ -126,13 +126,17 @@ def logout_view(request):
 def user_dashboard(request):
     """
     صفحة المستخدم – عرض البيانات والقضايا
+    (تشمل ملاحظات المحامي المحدثة من الأدمن)
     """
     profile = getattr(request.user, 'profile', None)
 
+    cases = request.user.account_cases.all().order_by('-created_at')
+
     return render(request, 'accounts/dashboard.html', {
         'profile': profile,
-        'cases': request.user.account_cases.all(),   # ✔️ الصحيح
+        'cases': cases,
         'documents': request.user.documents.all(),
+        'now': timezone.now(),   # ✅ لاستخدامه في تمييز الجديد بالواجهة
     })
 
 
@@ -183,12 +187,11 @@ def case_create(request):
             messages.error(request, 'عنوان القضية والوصف مطلوبان')
             return redirect('case_create')
 
-        # 🔐 توليد رقم قضية آمن وفريد
         case_number = f"CASE-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
 
         Case.objects.create(
             user=request.user,
-            case_number=case_number,   # ✅ حل جذري للمشكلة
+            case_number=case_number,
             case_type=case_type,
             title=title,
             description=description,
