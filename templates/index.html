@@ -84,6 +84,33 @@
       z-index: -1;
     }
   </style>
+  <style>
+/* ===== خلفية مائية للجوال فقط ===== */
+@media (max-width: 768px) {
+  .hero-desktop {
+    position: relative;
+    background-image: url("/media/legal_services/images.jpg");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: cover;
+  }
+
+  .hero-desktop::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(11, 15, 26, 0.85); /* تعتيم داكن */
+    backdrop-filter: blur(2px);
+    z-index: 0;
+  }
+
+  .hero-desktop > * {
+    position: relative;
+    z-index: 1;
+  }
+}
+</style>
+
 </head>
 
 <body class="bg-dark text-white font-cairo">
