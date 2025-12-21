@@ -91,7 +91,7 @@
 {% include "header.html" %}
 
 <!-- ================= HERO ================= -->
-<section class="px-9 sm:px-6 hero-desktop text-center pt-24 sm:pt-28 lg:pt-32">
+<section class="px-9 sm:px-6 hero-desktop text-center pt-16 sm:pt-20 lg:pt-24">
   <div class="container-desktop space-y-4 sm:space-y-6">
 
     <h1 class="text-2xl sm:text-4xl lg:text-5xl font-extrabold leading-tight title-glow">
@@ -110,30 +110,29 @@
 
 
 <form id="contactForm"
-      class="bg-card rounded-2xl p-4 sm:p-5 space-y-3 max-w-sm mx-auto">
+      class="mt-6 bg-card rounded-2xl p-4 sm:p-5 space-y-3 max-w-sm mx-auto
+             shadow-[0_0_0_1px_rgba(212,175,55,0.15),0_20px_60px_rgba(212,175,55,0.18)] 
+             relative">
+
+  <!-- إضاءة خلفية -->
+  <div class="absolute inset-0 -z-10 rounded-2xl
+              bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.18),transparent_20%)]
+              blur-2xl"></div>
 
   <h3 class="text-base sm:text-lg font-bold text-center leading-relaxed">
     أرسل لنا رسالة عن قضيتك وسيتم الرد عليك خلال وقت وجيز
   </h3>
 
-  <input id="contactName"
-         type="text"
-         placeholder="الاسم الكامل"
+  <input id="contactName" type="text" placeholder="الاسم الكامل"
          class="w-full p-2 sm:p-2.5 rounded-lg bg-dark border border-white/10 text-sm">
 
-  <input id="contactPhone"
-         type="text"
-         placeholder="الجوال"
+  <input id="contactPhone" type="text" placeholder="الجوال"
          class="w-full p-2 sm:p-2.5 rounded-lg bg-dark border border-white/10 text-sm">
 
-  <input id="contactEmail"
-         type="email"
-         placeholder="البريد الإلكتروني"
+  <input id="contactEmail" type="email" placeholder="البريد الإلكتروني"
          class="w-full p-2 sm:p-2.5 rounded-lg bg-dark border border-white/10 text-sm">
 
-  <textarea id="contactMessage"
-            rows="3"
-            placeholder="رسالتك"
+  <textarea id="contactMessage" rows="3" placeholder="رسالتك"
             class="w-full p-2 sm:p-2.5 rounded-lg bg-dark border border-white/10 text-sm"></textarea>
 
   <button type="submit"
