@@ -49,14 +49,12 @@
         align-items: center;
       }
 
-      /* ✅ تعديل عرض اللابتوب فقط: خدماتنا تصبح مربعات متجاورة */
       .services-grid {
         display: grid !important;
         grid-template-columns: repeat(3, 1fr);
         gap: 32px;
       }
 
-      /* ✅ لتكون مربعات أكبر ومتساوية على اللابتوب فقط */
       .services-grid > div {
         min-height: 360px;
       }
@@ -90,7 +88,6 @@
 
 <body class="bg-dark text-white font-cairo">
 
-<!-- ================= HEADER ================= -->
 {% include "header.html" %}
 
 <!-- ================= HERO ================= -->
@@ -163,7 +160,6 @@
       </p>
     </div>
 
-    <!-- ✅ لم نلمس هذا السطر نهائيًا (يحافظ على الجوال كما هو) -->
     <div class="services-grid flex flex-col space-y-4 sm:space-y-6 lg:space-y-0">
 
       {% for service in services %}
@@ -268,12 +264,22 @@
 العنوان:جدة – شارع طريق الأندلس – حي الرويس
     </div>
 
-    <form class="bg-card rounded-3xl p-6 sm:p-8 space-y-4 max-w-xl mx-auto">
-      <h3 class="text-lg sm:text-xl font-bold text-center">أرسل لنا رسالة</h3>
-      <input type="text" placeholder="الاسم الكامل" class="w-full p-3 sm:p-4 rounded-xl bg-dark border border-white/10">
-      <input type="email" placeholder="البريد الإلكتروني" class="w-full p-3 sm:p-4 rounded-xl bg-dark border border-white/10">
-      <textarea rows="4" placeholder="رسالتك" class="w-full p-3 sm:p-4 rounded-xl bg-dark border border-white/10"></textarea>
-      <button class="w-full bg-gold text-black font-bold py-3 sm:py-4 rounded-xl">
+    <form id="contactForm" class="bg-card rounded-3xl p-6 sm:p-8 space-y-4 max-w-xl mx-auto">
+      <h3 class="text-lg sm:text-xl font-bold text-center">أرسل لنا رسالة عن قضيتك وسيتم الرد عليك خلال وقت وجيز</h3>
+
+      <input id="contactName" type="text" placeholder="الاسم الكامل"
+             class="w-full p-3 sm:p-4 rounded-xl bg-dark border border-white/10">
+
+      <input id="contactPhone" type="text" placeholder="الجوال"
+             class="w-full p-3 sm:p-4 rounded-xl bg-dark border border-white/10">
+
+      <input id="contactEmail" type="email" placeholder="البريد الإلكتروني"
+             class="w-full p-3 sm:p-4 rounded-xl bg-dark border border-white/10">
+
+      <textarea id="contactMessage" rows="4" placeholder="رسالتك"
+                class="w-full p-3 sm:p-4 rounded-xl bg-dark border border-white/10"></textarea>
+
+      <button type="submit" class="w-full bg-gold text-black font-bold py-3 sm:py-4 rounded-xl">
         إرسال
       </button>
     </form>
@@ -281,7 +287,6 @@
   </div>
 </section>
 
-<!-- ================= FOOTER ================= -->
 {% include "footer.html" %}
 
 <!-- ================= INFO MODAL ================= -->
@@ -312,14 +317,48 @@ function closeInfo(){
 }
 </script>
 
-<!-- ✅ ويدجت صفحة المستخدم (دائري – ثابت يسار الشاشة) -->
+<!-- ================= CONTACT → WHATSAPP SCRIPT ================= -->
+<script>
+document.getElementById("contactForm").addEventListener("submit", function(e){
+  e.preventDefault();
+
+  const name = document.getElementById("contactName").value.trim();
+  const phone = document.getElementById("contactPhone").value.trim();
+  const email = document.getElementById("contactEmail").value.trim();
+  const message = document.getElementById("contactMessage").value.trim();
+
+  if(!name || !phone || !email || !message){
+    alert("الرجاء تعبئة جميع الحقول");
+    return;
+  }
+
+  const whatsappNumber = "966531991910";
+
+  const text =
+`السلام عليكم،
+لدي استفسار قانوني:
+
+الاسم: ${name}
+الجوال: ${phone}
+البريد: ${email}
+
+الرسالة:
+${message}`;
+
+  window.open(
+    `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`,
+    "_blank"
+  );
+});
+</script>
+
+<!-- ================= USER WIDGET ================= -->
 {% if request.user.is_authenticated %}
 <a href="{% url 'user_dashboard' %}"
    class="fixed bottom-6 left-6 z-[9998] group flex flex-col items-center gap-2">
   <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-card border border-gold/70 flex items-center justify-center
               shadow-[0_18px_45px_rgba(212,175,55,0.18)] hover:bg-gold transition">
-    <!-- أيقونة شخص (بدون صور خارجية حتى لا تتعطل) -->
-    <svg class="w-7 h-7 sm:w-8 sm:h-8 text-gold group-hover:text-black transition" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg class="w-7 h-7 sm:w-8 sm:h-8 text-gold group-hover:text-black transition" viewBox="0 0 24 24" fill="currentColor">
       <path d="M12 12c2.761 0 5-2.239 5-5S14.761 2 12 2 7 4.239 7 7s2.239 5 5 5zm0 2c-4.418 0-8 2.239-8 5v1c0 .552.448 1 1 1h14c.552 0 1-.448 1-1v-1c0-2.761-3.582-5-8-5z"/>
     </svg>
   </div>
