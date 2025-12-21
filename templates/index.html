@@ -110,6 +110,29 @@
   }
 }
 </style>
+<style>
+/* ===== خلفية مائية للجوال فقط (كامل الصفحة) ===== */
+@media (max-width: 768px) {
+  body {
+    position: relative;
+    background-image: url("/media/legal_services/images.jpg");
+    background-repeat: no-repeat;
+    background-position: center top;
+    background-size: cover;
+    background-attachment: fixed;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: rgba(11, 15, 26, 0.88); /* شفافية مائية داكنة */
+    backdrop-filter: blur(3px);
+    z-index: -1;
+  }
+}
+</style>
+
 
 </head>
 
