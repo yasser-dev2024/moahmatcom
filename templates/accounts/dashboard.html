@@ -118,7 +118,6 @@
   <!-- ===== القضايا ===== -->
   <div class="bg-card rounded-3xl p-6 sm:p-8 space-y-6 border border-white/10">
 
-    <!-- عنوان + زر -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <h2 class="text-xl font-bold text-gold flex items-center gap-2">
         ⚖️ قضاياي
@@ -130,43 +129,58 @@
       </a>
     </div>
 
-    <!-- محتوى القضايا -->
     {% if cases %}
-      <div class="space-y-4">
+      <div class="space-y-6">
+
         {% for case in cases %}
-          <div class="bg-dark rounded-xl p-4 border border-white/10 space-y-3">
+        <div class="bg-dark rounded-xl p-5 border border-white/10 space-y-4">
 
-            <div class="flex items-center justify-between">
-              <p class="font-bold">{{ case.title }}</p>
+          <div class="flex items-center justify-between">
+            <p class="font-bold text-lg">{{ case.title }}</p>
+          </div>
 
-              {% if case.updated_at and case.updated_at > case.created_at %}
-                <span class="text-xs bg-gold text-black px-3 py-1 rounded-full font-bold">
-                  جديد
-                </span>
-              {% endif %}
+          <p class="text-sm text-gray-400">
+            رقم القضية: {{ case.case_number }} |
+            التاريخ: {{ case.created_at|date:"Y-m-d" }}
+          </p>
+
+          <!-- 📝 ملاحظات المحامي -->
+          {% if case.lawyer_notes %}
+            <div class="bg-card rounded-lg p-4 border border-gold/30">
+              <p class="text-gold font-bold mb-1">📝 ملاحظات المحامي</p>
+              <p class="text-sm leading-relaxed text-gray-200">
+                {{ case.lawyer_notes }}
+              </p>
             </div>
+          {% endif %}
 
-            <p class="text-sm text-gray-400">
-              رقم القضية: {{ case.case_number }} |
-              التاريخ: {{ case.created_at|date:"Y-m-d" }}
-            </p>
+          <!-- 💬 الردود -->
+          <div class="space-y-3">
+            <p class="text-gold font-bold">💬 الردود والتواصل</p>
 
-            <!-- 🔔 ملاحظات المحامي -->
-            {% if case.lawyer_notes %}
-              <div class="bg-card rounded-lg p-4 border border-gold/30">
-                <p class="text-gold font-bold mb-1">📝 ملاحظات المحامي</p>
-                <p class="text-sm leading-relaxed text-gray-200">
-                  {{ case.lawyer_notes }}
-                </p>
-              </div>
+            {% if case.replies.all %}
+              {% for reply in case.replies.all %}
+                {% if reply.is_visible_for_client %}
+                <div class="bg-card rounded-lg p-4 border border-white/10">
+                  <p class="text-sm text-gray-200 leading-relaxed">
+                    {{ reply.message }}
+                  </p>
+                  <p class="text-xs text-gray-400 mt-2">
+                    {{ reply.created_at|date:"Y-m-d H:i" }}
+                  </p>
+                </div>
+                {% endif %}
+              {% endfor %}
             {% else %}
               <p class="text-sm text-gray-500">
-                لا توجد ملاحظات من المحامي حتى الآن.
+                لا توجد ردود حتى الآن.
               </p>
             {% endif %}
-
           </div>
+
+        </div>
         {% endfor %}
+
       </div>
     {% else %}
       <p class="text-gray-400">

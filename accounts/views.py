@@ -1,4 +1,4 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -9,7 +9,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 import uuid
 
-from .models import UserProfile, Case
+from .models import UserProfile, Case, CaseReply
 
 User = get_user_model()
 
@@ -126,17 +126,45 @@ def logout_view(request):
 def user_dashboard(request):
     """
     صفحة المستخدم – عرض البيانات والقضايا
-    (تشمل ملاحظات المحامي المحدثة من الأدمن)
+    + جميع الردود المرتبطة بكل قضية
     """
     profile = getattr(request.user, 'profile', None)
 
-    cases = request.user.account_cases.all().order_by('-created_at')
+    cases = (
+        request.user.account_cases
+        .prefetch_related('replies')
+        .order_by('-created_at')
+    )
 
     return render(request, 'accounts/dashboard.html', {
         'profile': profile,
         'cases': cases,
         'documents': request.user.documents.all(),
-        'now': timezone.now(),   # ✅ لاستخدامه في تمييز الجديد بالواجهة
+        'now': timezone.now(),
+    })
+
+
+# --------------------------------------------------
+# Case Detail (تفاصيل قضية + الردود)
+# --------------------------------------------------
+@login_required
+def case_detail(request, case_number):
+    """
+    عرض قضية واحدة مع جميع الردود (Timeline)
+    """
+    case = get_object_or_404(
+        Case,
+        case_number=case_number,
+        user=request.user
+    )
+
+    replies = case.replies.filter(
+        is_visible_for_client=True
+    ).order_by('created_at')
+
+    return render(request, 'accounts/case_detail.html', {
+        'case': case,
+        'replies': replies,
     })
 
 

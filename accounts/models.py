@@ -245,6 +245,12 @@ class CaseReply(models.Model):
         verbose_name="الرسالة"
     )
 
+    # ✅ مهم: تحكم بظهور الرد للعميل (افتراضيًا يظهر)
+    is_visible_for_client = models.BooleanField(
+        default=True,
+        verbose_name="مرئي للعميل"
+    )
+
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name="تاريخ الإرسال"
@@ -253,6 +259,7 @@ class CaseReply(models.Model):
     class Meta:
         verbose_name = "رد"
         verbose_name_plural = "الردود"
+        ordering = ["created_at"]
 
     def __str__(self):
         return f"رد على {self.case.case_number}"
