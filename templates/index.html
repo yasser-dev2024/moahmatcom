@@ -104,17 +104,44 @@
       المحامين المتخصصين الملتزمين بتحقيق العدالة وحماية مصالحك.
     </p>
 
-    <div class="flex flex-col gap-3 sm:gap-4 hero-buttons">
-      <a href="#" class="bg-gold text-black font-bold py-3 sm:py-4 px-8 sm:px-10 rounded-xl">
-        ← احجز استشارة مجانية
-      </a>
-      <a href="#" class="border border-gold text-gold py-3 sm:py-4 px-8 sm:px-10 rounded-xl">
-        تعرف على خدماتنا
-      </a>
-    </div>
 
   </div>
 </section>
+
+
+<form id="contactForm"
+      class="bg-card rounded-2xl p-4 sm:p-5 space-y-3 max-w-sm mx-auto">
+
+  <h3 class="text-base sm:text-lg font-bold text-center leading-relaxed">
+    أرسل لنا رسالة عن قضيتك وسيتم الرد عليك خلال وقت وجيز
+  </h3>
+
+  <input id="contactName"
+         type="text"
+         placeholder="الاسم الكامل"
+         class="w-full p-2 sm:p-2.5 rounded-lg bg-dark border border-white/10 text-sm">
+
+  <input id="contactPhone"
+         type="text"
+         placeholder="الجوال"
+         class="w-full p-2 sm:p-2.5 rounded-lg bg-dark border border-white/10 text-sm">
+
+  <input id="contactEmail"
+         type="email"
+         placeholder="البريد الإلكتروني"
+         class="w-full p-2 sm:p-2.5 rounded-lg bg-dark border border-white/10 text-sm">
+
+  <textarea id="contactMessage"
+            rows="3"
+            placeholder="رسالتك"
+            class="w-full p-2 sm:p-2.5 rounded-lg bg-dark border border-white/10 text-sm"></textarea>
+
+  <button type="submit"
+          class="w-full bg-gold text-black font-bold py-2.5 rounded-lg text-sm">
+    إرسال
+  </button>
+
+</form>
 
 <!-- ================= ABOUT ================= -->
 <section class="px-4 sm:px-6 py-16 sm:py-20">
@@ -264,27 +291,6 @@
 العنوان:جدة – شارع طريق الأندلس – حي الرويس
     </div>
 
-    <form id="contactForm" class="bg-card rounded-3xl p-6 sm:p-8 space-y-4 max-w-xl mx-auto">
-      <h3 class="text-lg sm:text-xl font-bold text-center">أرسل لنا رسالة عن قضيتك وسيتم الرد عليك خلال وقت وجيز</h3>
-
-      <input id="contactName" type="text" placeholder="الاسم الكامل"
-             class="w-full p-3 sm:p-4 rounded-xl bg-dark border border-white/10">
-
-      <input id="contactPhone" type="text" placeholder="الجوال"
-             class="w-full p-3 sm:p-4 rounded-xl bg-dark border border-white/10">
-
-      <input id="contactEmail" type="email" placeholder="البريد الإلكتروني"
-             class="w-full p-3 sm:p-4 rounded-xl bg-dark border border-white/10">
-
-      <textarea id="contactMessage" rows="4" placeholder="رسالتك"
-                class="w-full p-3 sm:p-4 rounded-xl bg-dark border border-white/10"></textarea>
-
-      <button type="submit" class="w-full bg-gold text-black font-bold py-3 sm:py-4 rounded-xl">
-        إرسال
-      </button>
-    </form>
-
-  </div>
 </section>
 
 {% include "footer.html" %}
