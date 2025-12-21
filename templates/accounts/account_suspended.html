@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>الحساب معلّق</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { gold: '#D4AF37', dark:'#0B0F1A', card:'#121826' }, fontFamily: { cairo:['Cairo','sans-serif'] } } }
+    }
+  </script>
+</head>
+<body class="bg-dark text-white font-cairo min-h-screen">
+  {% include "header.html" %}
+  <div class="h-[80px]"></div>
+
+  <div class="max-w-xl mx-auto px-4 py-10">
+    <div class="bg-card border border-white/10 rounded-2xl p-6 space-y-4">
+      <h1 class="text-xl font-extrabold text-gold">حسابك معلّق</h1>
+      <p class="text-gray-300 leading-relaxed">
+        يلزمك قراءة الاتفاقية والموافقة عليها (أو التوقيع) ثم إكمال الدفع لتفعيل الحساب.
+      </p>
+
+      {% if agreement %}
+        <a href="{% url 'agreement_view' agreement.token %}"
+           class="bg-gold text-black px-5 py-3 rounded-xl font-bold inline-block w-full text-center hover:opacity-90">
+          فتح الاتفاقية
+        </a>
+      {% else %}
+        <p class="text-yellow-400 font-bold">لم يتم إرسال اتفاقية لك بعد.</p>
+      {% endif %}
+
+      <a href="{% url 'logout' %}" class="text-gray-400 text-sm underline block text-center">تسجيل الخروج</a>
+    </div>
+  </div>
+
+  {% include "footer.html" %}
+</body>
+</html>

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ agreement.title }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { gold:'#D4AF37', dark:'#0B0F1A', card:'#121826' }, fontFamily: { cairo:['Cairo','sans-serif'] } } }
+    }
+  </script>
+
+  <style>
+    canvas { touch-action: none; }
+  </style>
+</head>
+
+<body class="bg-dark text-white font-cairo min-h-screen">
+  {% include "header.html" %}
+  <div class="h-[80px]"></div>
+
+  <div class="max-w-3xl mx-auto px-4 py-8 space-y-6">
+
+    <div class="bg-card border border-white/10 rounded-2xl p-6 space-y-4">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <h1 class="text-xl font-extrabold text-gold">{{ agreement.title }}</h1>
+          <p class="text-gray-400 text-sm">{{ agreement.office_name }}</p>
+        </div>
+
+        {% if agreement.office_logo %}
+          <img src="{{ agreement.office_logo.url }}" alt="logo" class="w-14 h-14 rounded-xl border border-gold/30 object-contain bg-white p-1">
+        {% endif %}
+      </div>
+
+      <div class="bg-dark border border-white/10 rounded-xl p-4 text-sm leading-relaxed text-gray-200 whitespace-pre-line">
+        {{ agreement.agreement_text }}
+      </div>
+
+      {% if agreement.status == "payment_pending" %}
+        <div class="bg-dark border border-gold/30 rounded-xl p-4">
+          <p class="text-gold font-bold mb-2">تمت الموافقة/التوقيع</p>
+          <a href="{% url 'payment_page' agreement.token %}"
+             class="bg-gold text-black px-5 py-3 rounded-xl font-bold inline-block w-full text-center hover:opacity-90">
+            الانتقال للدفع
+          </a>
+        </div>
+      {% elif agreement.status == "paid" %}
+        <div class="bg-dark border border-green-500/30 rounded-xl p-4">
+          <p class="text-green-400 font-bold">تم الدفع وتفعيل الحساب.</p>
+        </div>
+      {% else %}
+
+      <form method="post" class="space-y-4">
+        {% csrf_token %}
+
+        <div class="bg-dark border border-white/10 rounded-xl p-4 space-y-3">
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" name="accept_checkbox" class="w-5 h-5">
+            <span class="font-bold">✅ أوافق على الاتفاقية</span>
+          </label>
+          <p class="text-gray-400 text-sm">
+            اختر هذا الخيار إذا لا تريد التوقيع باللمس.
+          </p>
+        </div>
+
+        <div class="bg-dark border border-white/10 rounded-xl p-4 space-y-3">
+          <p class="font-bold text-gold">✍️ أو التوقيع باللمس (الجوال)</p>
+
+          <canvas id="sig" class="w-full rounded-xl border border-gold/30 bg-white" height="170"></canvas>
+
+          <input type="hidden" name="signature_data" id="signature_data">
+
+          <div class="flex gap-3">
+            <button type="button" id="clearBtn"
+                    class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 font-bold">
+              مسح
+            </button>
+            <button type="button" id="saveBtn"
+                    class="px-4 py-2 rounded-lg bg-gold text-black hover:opacity-90 font-bold">
+              حفظ التوقيع
+            </button>
+          </div>
+
+          <p class="text-gray-400 text-xs">
+            اضغط "حفظ التوقيع" قبل الإرسال إذا استخدمت التوقيع.
+          </p>
+        </div>
+
+        <button type="submit"
+                class="bg-gold text-black px-6 py-3 rounded-xl font-extrabold w-full hover:opacity-90">
+          تأكيد (موافقة / توقيع)
+        </button>
+      </form>
+
+      {% endif %}
+    </div>
+  </div>
+
+  {% include "footer.html" %}
+
+<script>
+  const canvas = document.getElementById('sig');
+  const ctx = canvas.getContext('2d');
+  let drawing = false;
+  let lastX = 0, lastY = 0;
+
+  function resizeCanvas() {
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    const rect = canvas.getBoundingClientRect();
+    const old = canvas.toDataURL();
+    canvas.width = rect.width * ratio;
+    canvas.height = 170 * ratio;
+    canvas.style.height = "170px";
+    ctx.scale(ratio, ratio);
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#111827';
+
+    // لا نحاول نسترجع الرسم القديم هنا لتجنب تعقيد
+  }
+
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches ? e.touches[0] : null;
+    const clientX = touch ? touch.clientX : e.clientX;
+    const clientY = touch ? touch.clientY : e.clientY;
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+
+  function start(e) {
+    drawing = true;
+    const p = getPos(e);
+    lastX = p.x;
+    lastY = p.y;
+  }
+
+  function move(e) {
+    if (!drawing) return;
+    e.preventDefault();
+    const p = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    lastX = p.x;
+    lastY = p.y;
+  }
+
+  function end() {
+    drawing = false;
+  }
+
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  canvas.addEventListener('mouseup', end);
+  canvas.addEventListener('mouseleave', end);
+
+  canvas.addEventListener('touchstart', start, { passive: false });
+  canvas.addEventListener('touchmove', move, { passive: false });
+  canvas.addEventListener('touchend', end);
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    document.getElementById('signature_data').value = '';
+  });
+
+  document.getElementById('saveBtn').addEventListener('click', () => {
+    // حفظ بصيغة PNG base64
+    const data = canvas.toDataURL('image/png');
+    document.getElementById('signature_data').value = data;
+  });
+</script>
+
+</body>
+</html>

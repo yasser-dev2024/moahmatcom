@@ -1,6 +1,13 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.utils import timezone
+from django.core.validators import MinLengthValidator
+from django.conf import settings
+from django.utils.crypto import get_random_string
+
 import uuid
+import base64
+from django.core.files.base import ContentFile
 
 
 # --------------------------------------------------
@@ -33,6 +40,22 @@ class User(AbstractUser):
     is_client = models.BooleanField(
         default=False,
         verbose_name="عميل"
+    )
+
+    # --------------------------------------------------
+    # ✅ حالة الحساب (تعليق/تفعيل حسب الاتفاقية والدفع)
+    # --------------------------------------------------
+    ACCOUNT_STATUS = [
+        ("active", "مفعل"),
+        ("pending_agreement", "معلّق بانتظار الاتفاقية"),
+        ("payment_pending", "بانتظار الدفع"),
+    ]
+
+    account_status = models.CharField(
+        max_length=30,
+        choices=ACCOUNT_STATUS,
+        default="active",
+        verbose_name="حالة الحساب"
     )
 
     created_at = models.DateTimeField(
@@ -263,3 +286,131 @@ class CaseReply(models.Model):
 
     def __str__(self):
         return f"رد على {self.case.case_number}"
+
+
+# --------------------------------------------------
+# ✅ اتفاقية المستخدم (ترسل من الأدمن لمستخدم واحد فقط)
+# --------------------------------------------------
+class UserAgreement(models.Model):
+    STATUS = [
+        ("sent", "مرسلة"),
+        ("accepted", "تمت الموافقة"),
+        ("signed", "تم التوقيع"),
+        ("payment_pending", "بانتظار الدفع"),
+        ("paid", "تم الدفع"),
+        ("expired", "منتهية"),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="agreements",
+        verbose_name="المستخدم"
+    )
+
+    token = models.CharField(
+        max_length=64,
+        unique=True,
+        blank=True,
+        verbose_name="رمز الوصول"
+    )
+
+    office_name = models.CharField(
+        max_length=255,
+        default="مكتب المحاماة والاستشارات القانونية",
+        verbose_name="اسم المكتب"
+    )
+
+    office_logo = models.ImageField(
+        upload_to="agreements/logos/",
+        blank=True,
+        null=True,
+        verbose_name="شعار المكتب"
+    )
+
+    title = models.CharField(
+        max_length=255,
+        default="اتفاقية تقديم خدمات قانونية",
+        verbose_name="عنوان الاتفاقية"
+    )
+
+    agreement_text = models.TextField(
+        verbose_name="نص الاتفاقية"
+    )
+
+    # خيار 1: checkbox موافق
+    accepted_checkbox = models.BooleanField(
+        default=False,
+        verbose_name="موافقة (مربع)"
+    )
+
+    accepted_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name="تاريخ الموافقة"
+    )
+
+    # خيار 2: توقيع لمس (صورة)
+    signature_image = models.ImageField(
+        upload_to="agreements/signatures/",
+        blank=True,
+        null=True,
+        verbose_name="صورة التوقيع"
+    )
+
+    signed_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name="تاريخ التوقيع"
+    )
+
+    # الدفع
+    payment_required = models.BooleanField(
+        default=True,
+        verbose_name="يتطلب دفع"
+    )
+
+    payment_status = models.CharField(
+        max_length=30,
+        choices=[
+            ("not_started", "لم يبدأ"),
+            ("pending", "بانتظار الدفع"),
+            ("paid", "تم الدفع"),
+        ],
+        default="not_started",
+        verbose_name="حالة الدفع"
+    )
+
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS,
+        default="sent",
+        verbose_name="حالة الاتفاقية"
+    )
+
+    sent_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="تاريخ الإرسال"
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="تاريخ الإنشاء"
+    )
+
+    class Meta:
+        verbose_name = "اتفاقية"
+        verbose_name_plural = "الاتفاقيات"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"اتفاقية {self.user.username} - {self.get_status_display()}"
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = get_random_string(48)
+        super().save(*args, **kwargs)
+
+    @property
+    def is_completed(self):
+        return self.status in ("paid",) or (self.payment_required is False and self.status in ("accepted", "signed"))

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>الدفع</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { gold:'#D4AF37', dark:'#0B0F1A', card:'#121826' }, fontFamily: { cairo:['Cairo','sans-serif'] } } }
+    }
+  </script>
+</head>
+
+<body class="bg-dark text-white font-cairo min-h-screen">
+  {% include "header.html" %}
+  <div class="h-[80px]"></div>
+
+  <div class="max-w-xl mx-auto px-4 py-10">
+    <div class="bg-card border border-white/10 rounded-2xl p-6 space-y-4">
+      <h1 class="text-xl font-extrabold text-gold">صفحة الدفع</h1>
+      <p class="text-gray-300 leading-relaxed">
+        هذه صفحة الدفع الخاصة بك. بعد إتمام الدفع سيتم تفعيل الحساب تلقائيًا.
+      </p>
+
+      <form method="post">
+        {% csrf_token %}
+        <button type="submit"
+                class="bg-gold text-black px-6 py-3 rounded-xl font-extrabold w-full hover:opacity-90">
+          تأكيد الدفع (تجربة)
+        </button>
+      </form>
+
+      <p class="text-gray-500 text-xs">
+        ملاحظة: ربط بوابة الدفع سيتم إضافته لاحقًا هنا (مدى/Apple Pay/…).
+      </p>
+    </div>
+  </div>
+
+  {% include "footer.html" %}
+</body>
+</html>

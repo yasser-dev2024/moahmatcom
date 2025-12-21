@@ -40,6 +40,38 @@
 <!-- ================= DASHBOARD ================= -->
 <div class="container-desktop mx-auto px-4 py-10 space-y-10">
 
+  <!-- ================= الاتفاقية (تظهر فقط إذا الحساب معلّق وعنده اتفاقية) ================= -->
+  {% if agreement and request.user.account_status != "active" %}
+    <div class="bg-card rounded-3xl p-6 sm:p-8 border border-gold/25 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-gold">📄 اتفاقية مطلوبة</h2>
+          <p class="text-sm text-gray-300 mt-1">
+            حسابك معلّق مؤقتًا لحين الموافقة/التوقيع على الاتفاقية، وبعدها يظهر الدفع إذا مطلوب.
+          </p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3">
+          <a href="{% url 'agreement_view' agreement.token %}"
+             class="bg-gold text-black px-6 py-3 rounded-xl font-bold hover:opacity-90 transition text-center">
+            فتح الاتفاقية
+          </a>
+
+          {% if agreement.status == "payment_pending" %}
+            <a href="{% url 'payment_page' agreement.token %}"
+               class="bg-green-600 text-white px-6 py-3 rounded-xl font-bold hover:opacity-90 transition text-center">
+              💳 الدفع
+            </a>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="text-xs text-gray-400">
+        آخر تحديث: {{ agreement.created_at|date:"Y-m-d H:i" }}
+      </div>
+    </div>
+  {% endif %}
+
   <!-- ===== العنوان ===== -->
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <h1 class="text-2xl font-bold">
@@ -158,24 +190,22 @@
           <div class="space-y-3">
             <p class="text-gold font-bold">💬 الردود والتواصل</p>
 
-            {% if case.replies.all %}
-              {% for reply in case.replies.all %}
-                {% if reply.is_visible_for_client %}
-                <div class="bg-card rounded-lg p-4 border border-white/10">
-                  <p class="text-sm text-gray-200 leading-relaxed">
-                    {{ reply.message }}
-                  </p>
-                  <p class="text-xs text-gray-400 mt-2">
-                    {{ reply.created_at|date:"Y-m-d H:i" }}
-                  </p>
-                </div>
-                {% endif %}
-              {% endfor %}
-            {% else %}
+            {% for reply in case.replies.all %}
+              {% if reply.is_visible_for_client %}
+              <div class="bg-card rounded-lg p-4 border border-white/10">
+                <p class="text-sm text-gray-200 leading-relaxed">
+                  {{ reply.message }}
+                </p>
+                <p class="text-xs text-gray-400 mt-2">
+                  {{ reply.created_at|date:"Y-m-d H:i" }}
+                </p>
+              </div>
+              {% endif %}
+            {% empty %}
               <p class="text-sm text-gray-500">
                 لا توجد ردود حتى الآن.
               </p>
-            {% endif %}
+            {% endfor %}
           </div>
 
         </div>
