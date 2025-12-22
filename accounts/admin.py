@@ -1,9 +1,7 @@
-from django.contrib import admin, messages
-from django.utils.html import format_html
+# accounts/admin.py
+from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils import timezone
-from datetime import timedelta
-from django.urls import path
-from django.shortcuts import redirect, get_object_or_404
 
 from .models import (
     User,
@@ -11,177 +9,161 @@ from .models import (
     UserDocument,
     Case,
     CaseReply,
-    UserAgreement,
+    AgreementTemplate,
+    UserAgreement
 )
 
-
 # --------------------------------------------------
-# User
+# User Admin (مهم لحل autocomplete_fields)
 # --------------------------------------------------
 @admin.register(User)
-class UserAdmin(admin.ModelAdmin):
+class UserAdmin(BaseUserAdmin):
+    model = User
+
     list_display = (
-        'username',
-        'email',
-        'phone_number',
-        'account_status',
-        'is_client',
-        'is_lawyer',
-        'is_staff',
-        'send_agreement_button',
-        'created_at',
+        "username",
+        "email",
+        "phone_number",
+        "is_client",
+        "is_lawyer",
+        "account_status",
+        "is_active",
     )
-    list_filter = ('account_status', 'is_client', 'is_lawyer', 'is_staff')
-    search_fields = ('username', 'email', 'phone_number')
 
-    def get_urls(self):
-        urls = super().get_urls()
-        custom_urls = [
-            path(
-                'send-agreement/<int:user_id>/',
-                self.admin_site.admin_view(self.send_agreement_view),
-                name='send_user_agreement',
-            ),
-        ]
-        return custom_urls + urls
-
-    @admin.display(description="اتفاقية")
-    def send_agreement_button(self, obj):
-        return format_html(
-            '<a class="button" style="background:#D4AF37;color:#000;'
-            'font-weight:700;padding:6px 12px;border-radius:8px;" '
-            'href="send-agreement/{}/">إرسال</a>',
-            obj.id
-        )
-
-    def send_agreement_view(self, request, user_id):
-        user = get_object_or_404(User, id=user_id)
-
-        agreement_text = (
-            "اتفاقية تقديم خدمات قانونية\n\n"
-            "يلتزم الطرفان بما يلي:\n"
-            "1) تقديم معلومات صحيحة.\n"
-            "2) المحافظة على سرية البيانات.\n"
-            "3) الالتزام بسداد الأتعاب المتفق عليها.\n"
-            "\n"
-            "بالموافقة أو التوقيع، يقر العميل قبوله التام."
-        )
-
-        UserAgreement.objects.create(
-            user=user,
-            agreement_text=agreement_text,
-            status="sent",
-            payment_required=True
-        )
-
-        user.account_status = "pending_agreement"
-        user.save(update_fields=["account_status"])
-
-        messages.success(request, f"تم إرسال الاتفاقية للمستخدم {user.username}.")
-        return redirect(f"/admin/accounts/user/{user.id}/change/")
-
-
-# --------------------------------------------------
-# User Profile
-# --------------------------------------------------
-@admin.register(UserProfile)
-class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'full_name', 'national_id')
-    search_fields = ('full_name', 'national_id')
-
-
-# --------------------------------------------------
-# User Documents
-# --------------------------------------------------
-@admin.register(UserDocument)
-class UserDocumentAdmin(admin.ModelAdmin):
-    list_display = ('title', 'user', 'uploaded_at')
-    search_fields = ('title',)
-
-
-# --------------------------------------------------
-# Inline Replies
-# --------------------------------------------------
-class CaseReplyInline(admin.TabularInline):
-    model = CaseReply
-    extra = 0
-    fields = ('sender', 'message', 'is_visible_for_client', 'created_at')
-    readonly_fields = ('created_at',)
-
-
-# --------------------------------------------------
-# Case
-# --------------------------------------------------
-@admin.register(Case)
-class CaseAdmin(admin.ModelAdmin):
-    list_display = (
-        'case_box',
-        'user',
-        'status',
-        'created_at',
+    list_filter = (
+        "is_client",
+        "is_lawyer",
+        "account_status",
+        "is_active",
     )
-    list_filter = ('status', 'case_type')
-    search_fields = ('case_number', 'title', 'user__username')
-    ordering = ('-created_at',)
-    inlines = [CaseReplyInline]
 
-    @admin.display(description="القضية")
-    def case_box(self, obj):
-        is_new = obj.created_at >= timezone.now() - timedelta(days=1)
-
-        last_reply = obj.replies.order_by('-created_at').first()
-        has_new_reply = bool(
-            last_reply and
-            last_reply.created_at >= timezone.now() - timedelta(days=1)
-        )
-
-        badge = ""
-        if is_new:
-            badge = '<span style="background:#D4AF37;color:#000;padding:2px 8px;border-radius:10px;font-size:11px;">جديدة</span>'
-        elif has_new_reply:
-            badge = '<span style="background:#16a34a;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;">رد جديد</span>'
-
-        return format_html(
-            """
-            <div style="line-height:1.6">
-              <strong>{}</strong><br>
-              <span style="color:#666">#{}</span><br>
-              {}
-            </div>
-            """,
-            obj.title,
-            obj.case_number,
-            badge
-        )
-
-
-# --------------------------------------------------
-# Case Replies
-# --------------------------------------------------
-@admin.register(CaseReply)
-class CaseReplyAdmin(admin.ModelAdmin):
-    list_display = (
-        'case',
-        'sender',
-        'short_message',
-        'is_visible_for_client',
-        'created_at',
+    search_fields = (
+        "username",
+        "email",
+        "phone_number",
     )
-    list_filter = ('is_visible_for_client',)
-    search_fields = ('message', 'case__case_number')
-    ordering = ('-created_at',)
 
-    @admin.display(description="الرسالة")
-    def short_message(self, obj):
-        return obj.message[:50] + "..." if len(obj.message) > 50 else obj.message
+    ordering = ("-date_joined",)
 
 
 # --------------------------------------------------
-# User Agreements
+# Agreement Templates
+# --------------------------------------------------
+@admin.register(AgreementTemplate)
+class AgreementTemplateAdmin(admin.ModelAdmin):
+    list_display = ("title", "is_active", "created_at", "updated_at")
+    list_filter = ("is_active",)
+    search_fields = ("title", "agreement_text")
+    ordering = ("-created_at",)
+
+
+# --------------------------------------------------
+# Admin Actions
+# --------------------------------------------------
+@admin.action(description="اعتماد الدفع (تفعيل الاتفاقية والحساب)")
+def approve_payment(modeladmin, request, queryset):
+    now = timezone.now()
+
+    for ag in queryset:
+        ag.status = "paid"
+        ag.paid_at = now
+
+        if not ag.receipt_number:
+            ag.receipt_number = f"OFFICE-{now.strftime('%Y%m%d')}-{ag.id}"
+
+        ag.save()
+
+        user = ag.user
+        if user.account_status != "active":
+            user.account_status = "active"
+            user.save(update_fields=["account_status"])
+
+
+@admin.action(description="رفض الدفع (إرجاعها لانتظار الدفع)")
+def reject_payment(modeladmin, request, queryset):
+    for ag in queryset:
+        ag.status = "payment_pending"
+        ag.save()
+
+
+# --------------------------------------------------
+# UserAgreement Admin
 # --------------------------------------------------
 @admin.register(UserAgreement)
 class UserAgreementAdmin(admin.ModelAdmin):
-    list_display = ('user', 'status', 'payment_status', 'sent_at')
-    list_filter = ('status', 'payment_status')
-    search_fields = ('user__username', 'agreement_text')
-    ordering = ('-created_at',)
+
+    list_display = (
+        "user",
+        "status",
+        "payment_method",
+        "payment_amount",
+        "office_invoice_number",
+        "client_payment_receipt",
+        "created_at",
+    )
+
+    list_filter = (
+        "status",
+        "payment_method",
+    )
+
+    search_fields = (
+        "user__username",
+        "office_invoice_number",
+        "client_payment_receipt",
+        "token",
+    )
+
+    autocomplete_fields = (
+        "user",
+        "template",
+    )
+
+    actions = [
+        approve_payment,
+        reject_payment,
+    ]
+
+    fieldsets = (
+        ("العميل والقالب", {
+            "fields": ("user", "template")
+        }),
+        ("بيانات الاتفاقية", {
+            "fields": ("office_name", "office_logo", "title", "agreement_text", "token")
+        }),
+        ("الموافقة / التوقيع", {
+            "fields": ("accepted_checkbox", "accepted_at", "signature_image", "signed_at")
+        }),
+        ("الدفع", {
+            "fields": (
+                "payment_required",
+                "payment_method",
+                "payment_amount",
+                "office_invoice_number",
+                "sadad_bill_number",
+                "client_payment_receipt",
+                "client_paid_at",
+                "receipt_number",
+                "paid_at",
+                "receipt_pdf",
+            )
+        }),
+        ("الحالة", {
+            "fields": ("status", "sent_at", "created_at")
+        }),
+    )
+
+    readonly_fields = (
+        "sent_at",
+        "created_at",
+        "paid_at",
+    )
+
+
+# --------------------------------------------------
+# تسجيل باقي الموديلات
+# --------------------------------------------------
+admin.site.register(UserProfile)
+admin.site.register(UserDocument)
+admin.site.register(Case)
+admin.site.register(CaseReply)

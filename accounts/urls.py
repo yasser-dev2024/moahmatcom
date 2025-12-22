@@ -1,49 +1,24 @@
 # accounts/urls.py
 from django.urls import path
-from .views import (
-    register_view,
-    login_view,
-    logout_view,
-    user_dashboard,
-    profile_update_view,
-    case_create,
-
-    # -----------------------------
-    # Agreement / Suspension / Payment
-    # -----------------------------
-    account_suspended,
-    agreement_view,
-    payment_page,
-    payment_success,   # ✅ NEW
-)
+from . import views
 
 urlpatterns = [
+    path("register/", views.register_view, name="register"),
+    path("login/", views.login_view, name="login"),
+    path("logout/", views.logout_view, name="logout"),
 
-    # --------------------------------------------------
-    # Authentication
-    # --------------------------------------------------
-    path('register/', register_view, name='register'),
-    path('login/', login_view, name='login'),
-    path('logout/', logout_view, name='logout'),
+    path("dashboard/", views.user_dashboard, name="user_dashboard"),
+    path("profile/", views.profile_update_view, name="profile_update"),
+    path("case/create/", views.case_create, name="case_create"),
 
-    # --------------------------------------------------
-    # User Dashboard & Profile
-    # --------------------------------------------------
-    path('dashboard/', user_dashboard, name='user_dashboard'),
-    path('profile/', profile_update_view, name='profile_update'),
+    path("suspended/", views.account_suspended, name="account_suspended"),
 
-    # --------------------------------------------------
-    # Cases
-    # --------------------------------------------------
-    path('cases/create/', case_create, name='case_create'),
+    path("agreement/<str:token>/", views.agreement_view, name="agreement_view"),
 
-    # --------------------------------------------------
-    # Account Agreement Flow
-    # --------------------------------------------------
-    path('suspended/', account_suspended, name='account_suspended'),
-    path('agreement/<str:token>/', agreement_view, name='agreement_view'),
+    # الدفع
+    path("payment/<str:token>/", views.payment_page, name="payment_page"),
+    path("payment/<str:token>/pending/", views.payment_pending_review, name="payment_pending_review"),
 
-    # ✅ Payment
-    path('payment/<str:token>/', payment_page, name='payment_page'),
-    path('payment/<str:token>/success/', payment_success, name='payment_success'),  # ✅ NEW
+    # نجاح الدفع (بعد اعتماد المكتب)
+    path("payment/<str:token>/success/", views.payment_success, name="payment_success"),
 ]

@@ -1,0 +1,44 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>بانتظار اعتماد المكتب</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Cairo', sans-serif; }
+  </style>
+</head>
+
+<body class="bg-[#0B0F1A] text-white min-h-screen">
+  {% include "header.html" %}
+  <div class="h-24"></div>
+
+  <div class="max-w-xl mx-auto bg-[#121826] rounded-2xl p-6 shadow-xl text-center">
+    <h2 class="text-2xl font-extrabold text-yellow-400 mb-4">بانتظار موافقة المكتب</h2>
+
+    <p class="text-gray-200 leading-loose mb-4">
+      تم استلام رقم الإيصال بنجاح وسيتم مراجعته من قبل المكتب.
+    </p>
+
+    <div class="bg-black/30 rounded-xl p-4 mb-4">
+      <div class="text-sm text-gray-400">رقم الإيصال المرسل</div>
+      <div class="text-xl font-bold">{{ agreement.receipt_number }}</div>
+    </div>
+
+    <div class="bg-black/30 rounded-xl p-4 mb-6">
+      <div class="text-sm text-gray-400">المبلغ</div>
+      <div class="text-xl font-bold">SAR {{ agreement.payment_amount }}</div>
+    </div>
+
+    <a href="{% url 'user_dashboard' %}"
+       class="inline-block w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 rounded-xl">
+      رجوع للوحة التحكم
+    </a>
+  </div>
+</body>
+</html>

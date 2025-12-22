@@ -1,142 +1,105 @@
-<!-- templates/accounts/payment.html -->
+{% load static %}
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8" />
-  <title>الدفع - {{ agreement.title }}</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta charset="UTF-8">
+    <title>الدفع</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: { gold:'#D4AF37', dark:'#0B0F1A', card:'#121826' },
-          fontFamily: { cairo:['Cairo','sans-serif'] }
-        }
-      }
-    }
-  </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Cairo', sans-serif; }
+    </style>
 </head>
 
-<body class="bg-dark text-white font-cairo min-h-screen">
-  {% include "header.html" %}
-  <div class="h-[80px]"></div>
+<body class="bg-[#0B0F1A] text-white min-h-screen">
 
-  <main class="max-w-3xl mx-auto px-4 pb-24">
-    <div class="bg-card border border-white/10 rounded-2xl p-6 md:p-8 space-y-5">
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <h1 class="text-2xl md:text-3xl font-extrabold text-gold">الدفع</h1>
-          <p class="text-white/60 text-sm mt-1">{{ agreement.title }}</p>
-        </div>
-        <div class="text-xs text-white/50">
-          Token: {{ agreement.token }}
-        </div>
-      </div>
+{% include "header.html" %}
+<div class="h-24"></div>
 
-      {% if messages %}
-        <div class="space-y-2">
-          {% for message in messages %}
-            <div class="rounded-xl px-4 py-3 border border-white/10 bg-white/5 text-sm">
-              {{ message }}
+<div class="max-w-xl mx-auto bg-[#121826] rounded-2xl p-6 shadow-xl">
+
+    <h2 class="text-2xl font-extrabold text-yellow-400 mb-6 text-center">
+        طريقة الدفع
+    </h2>
+
+    <!-- رسائل النظام -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="mb-4 p-3 rounded-xl text-sm
+                {% if message.tags == 'error' %}
+                    bg-red-600
+                {% else %}
+                    bg-green-600
+                {% endif %}
+            ">
+                {{ message }}
             </div>
-          {% endfor %}
-        </div>
-      {% endif %}
+        {% endfor %}
+    {% endif %}
 
-      <div class="bg-dark border border-white/10 rounded-xl p-4 space-y-2">
-        <div class="flex items-center justify-between">
-          <span class="text-white/70">حالة الدفع</span>
-          <span class="font-bold text-gold">{{ agreement.payment_status }}</span>
-        </div>
+    <!-- تعليمات الدفع -->
+    <div class="bg-[#0E1423] rounded-xl p-4 text-sm leading-loose mb-6">
+        <p class="mb-2">يرجى تحويل مبلغ الاتفاقية إلى الحساب التالي:</p>
 
-        <div class="flex items-center justify-between">
-          <span class="text-white/70">المبلغ</span>
-          <span class="font-extrabold text-xl">
-            {% if agreement.payment_amount %}
-              {{ agreement.payment_amount }} SAR
-            {% else %}
-              — SAR
-            {% endif %}
-          </span>
-        </div>
+        <ul class="space-y-1">
+            <li>🏦 <strong>البنك:</strong> {{ office_bank_name }}</li>
+            <li>👤 <strong>اسم المستفيد:</strong> {{ office_account_name }}</li>
+            <li>💳 <strong>الآيبان:</strong> {{ office_iban }}</li>
+            <li>🧾 <strong>رقم الفاتورة:</strong> {{ office_invoice_number }}</li>
+        </ul>
 
-        <p class="text-xs text-white/50">
-          ملاحظة: الدفع الآن “محاكاة” إلى أن تربط بوابة الدفع الفعلية (تابي/هايبر باي...).
+        <p class="mt-4 text-yellow-400">
+            ⚠️ بعد التحويل، أدخل رقم إيصال الدفع ثم اضغط إرسال.
         </p>
-      </div>
-
-      <button id="openPay"
-              class="bg-gold text-black px-6 py-3 rounded-xl font-extrabold w-full hover:opacity-90">
-        ادفع الآن
-      </button>
-
-      <a href="{% url 'agreement_view' agreement.token %}"
-         class="block text-center text-white/60 hover:text-white text-sm">
-        رجوع للاتفاقية
-      </a>
     </div>
-  </main>
 
-  <!-- Modal -->
-  <div id="payModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50">
-    <div class="absolute inset-0 bg-black/60"></div>
-
-    <div class="relative w-full max-w-md bg-card border border-white/10 rounded-2xl p-6 space-y-4">
-      <div class="flex items-center justify-between">
-        <h2 class="text-lg font-extrabold text-gold">تأكيد الدفع</h2>
-        <button id="closePay" class="text-white/70 hover:text-white font-bold">✕</button>
-      </div>
-
-      <div class="bg-dark border border-white/10 rounded-xl p-4">
-        <div class="flex items-center justify-between">
-          <span class="text-white/70 text-sm">الإجمالي</span>
-          <span class="text-xl font-extrabold">
-            {% if agreement.payment_amount %}
-              {{ agreement.payment_amount }} SAR
-            {% else %}
-              — SAR
-            {% endif %}
-          </span>
+    <!-- المبلغ -->
+    <div class="bg-black/30 rounded-xl p-4 mb-6 text-center">
+        <div class="text-sm text-gray-400">المبلغ المطلوب</div>
+        <div class="text-2xl font-bold text-white">
+            SAR {{ agreement.payment_amount }}
         </div>
-        <p class="text-xs text-white/50 mt-2">سيتم إنشاء إيصال PDF بعد الدفع تلقائيًا.</p>
-      </div>
-
-      <form method="post" class="space-y-3">
-        {% csrf_token %}
-        <button type="submit"
-                class="bg-gold text-black px-6 py-3 rounded-xl font-extrabold w-full hover:opacity-90">
-          تأكيد الدفع
-        </button>
-        <button type="button" id="cancelPay"
-                class="px-6 py-3 rounded-xl font-bold w-full bg-white/10 hover:bg-white/15">
-          إلغاء
-        </button>
-      </form>
     </div>
-  </div>
 
-  <!-- مقاطع لغة الإشارة (ثابت أسفل يسار) -->
-  <div class="fixed bottom-3 left-3 z-40">
-    {# {% include "partials/sign_language.html" %} #}
-  </div>
+    <!-- نموذج إدخال رقم الإيصال -->
+    {% if not agreement.client_payment_receipt %}
+        <form method="post" action="">
+            {% csrf_token %}
 
-  {% include "footer.html" %}
+            <label class="block mb-2 text-sm">
+                رقم إيصال الدفع <span class="text-red-500">*</span>
+            </label>
 
-  <script>
-    const modal = document.getElementById('payModal');
-    const openBtn = document.getElementById('openPay');
-    const closeBtn = document.getElementById('closePay');
-    const cancelBtn = document.getElementById('cancelPay');
+            <input
+                type="text"
+                name="client_payment_receipt"
+                required
+                placeholder="مثال: 458796321"
+                class="w-full rounded-lg px-4 py-3 text-black mb-4"
+            >
 
-    function openModal(){ modal.classList.remove('hidden'); modal.classList.add('flex'); }
-    function closeModal(){ modal.classList.add('hidden'); modal.classList.remove('flex'); }
+            <button
+                type="submit"
+                class="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 rounded-xl">
+                إرسال رقم الإيصال
+            </button>
+        </form>
+    {% else %}
+        <div class="mt-6 text-center bg-green-700/30 p-4 rounded-xl">
+            ✔ تم إرسال رقم الإيصال بنجاح  
+            <div class="text-sm text-gray-300 mt-1">
+                رقم الإيصال: {{ agreement.client_payment_receipt }}
+            </div>
+            <div class="text-xs text-yellow-400 mt-2">
+                بانتظار اعتماد المكتب
+            </div>
+        </div>
+    {% endif %}
 
-    openBtn.addEventListener('click', openModal);
-    closeBtn.addEventListener('click', closeModal);
-    cancelBtn.addEventListener('click', closeModal);
-  </script>
+</div>
+
 </body>
 </html>

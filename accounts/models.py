@@ -1,13 +1,10 @@
+# accounts/models.py
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from django.utils import timezone
-from django.core.validators import MinLengthValidator
-from django.conf import settings
 from django.utils.crypto import get_random_string
+from django.utils import timezone
 
 import uuid
-import base64
-from django.core.files.base import ContentFile
 
 
 # --------------------------------------------------
@@ -48,7 +45,7 @@ class User(AbstractUser):
     ACCOUNT_STATUS = [
         ("active", "مفعل"),
         ("pending_agreement", "معلّق بانتظار الاتفاقية"),
-        ("payment_pending", "بانتظار الدفع"),
+        ("payment_pending", "بانتظار الدفع/المراجعة"),
     ]
 
     account_status = models.CharField(
@@ -336,9 +333,17 @@ class UserAgreement(models.Model):
         ("sent", "مرسلة"),
         ("accepted", "تمت الموافقة"),
         ("signed", "تم التوقيع"),
-        ("payment_pending", "بانتظار الدفع"),
+        ("payment_pending", "بانتظار الدفع/إرسال الإيصال"),
+        ("under_review", "بانتظار مراجعة المكتب"),
         ("paid", "تم الدفع"),
+        ("rejected", "مرفوض"),
         ("expired", "منتهية"),
+    ]
+
+    PAYMENT_METHOD = [
+        ("sadad", "سداد (من تطبيق البنك)"),
+        ("bank_transfer", "تحويل بنكي"),
+        ("cash", "يدوي/نقدي"),
     ]
 
     user = models.ForeignKey(
@@ -417,20 +422,16 @@ class UserAgreement(models.Model):
         verbose_name="يتطلب دفع"
     )
 
-    payment_status = models.CharField(
-        max_length=30,
-        choices=[
-            ("not_started", "لم يبدأ"),
-            ("pending", "بانتظار الدفع"),
-            ("paid", "تم الدفع"),
-        ],
-        default="not_started",
-        verbose_name="حالة الدفع"
-    )
-
     # -------------------------------
     # بيانات الدفع العامة
     # -------------------------------
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PAYMENT_METHOD,
+        default="sadad",
+        verbose_name="طريقة الدفع"
+    )
+
     payment_amount = models.DecimalField(
         "مبلغ الدفع",
         max_digits=10,
@@ -439,26 +440,40 @@ class UserAgreement(models.Model):
         null=True
     )
 
-    # ✅ رقم فاتورة المكتب/سداد الثابت الذي يظهر للعميل (يسمح بالتكرار)
-    # هذا هو الرقم الموحد الذي قلت تبيه لجميع العملاء
+    # ✅ هذا هو “رقم الفاتورة” الذي تريد أن يكون ثابت ويظهر للعميل
     office_invoice_number = models.CharField(
-        "رقم الفاتورة الموحد",
-        max_length=32,
+        "رقم الفاتورة (ثابت للمكتب)",
+        max_length=64,
         blank=True,
         null=True,
-        help_text="ضع رقم الفاتورة الثابت للمكتب هنا (سيظهر للعميل)."
+        help_text="رقم ثابت تضعه من الأدمن ليظهر للعميل أثناء السداد."
     )
 
-    # رقم الإيصال (بعد الدفع) يختلف من عميل لعميل (اختياري)
-    receipt_number = models.CharField(
-        "رقم الإيصال",
+    # ✅ هذا رقم الإيصال الذي يدخله العميل بعد الدفع (إجباري عند الإرسال)
+    client_payment_receipt = models.CharField(
+        "رقم إيصال العميل",
         max_length=64,
+        blank=True,
+        null=True,
+        help_text="العميل يدخل رقم الإيصال بعد السداد/التحويل."
+    )
+
+    client_paid_at = models.DateTimeField(
+        "تاريخ إدخال الإيصال من العميل",
         blank=True,
         null=True
     )
 
+    receipt_number = models.CharField(
+        "رقم إيصال المكتب",
+        max_length=64,
+        blank=True,
+        null=True,
+        help_text="يولده المكتب بعد الاعتماد (اختياري)."
+    )
+
     paid_at = models.DateTimeField(
-        "تاريخ الدفع",
+        "تاريخ اعتماد الدفع",
         blank=True,
         null=True
     )
@@ -471,15 +486,14 @@ class UserAgreement(models.Model):
     )
 
     # -------------------------------
-    # ✅ بيانات سداد (SADAD)
+    # ✅ بيانات سداد (SADAD) - ثابتة ولا تقبل unique
     # -------------------------------
-    # ✅ أهم إصلاح: ممنوع unique هنا لأنك تريد رقم ثابت للجميع
     sadad_bill_number = models.CharField(
-        "رقم فاتورة سداد",
+        "رقم فاتورة سداد (مرجعي)",
         max_length=32,
         blank=True,
         null=True,
-        help_text="إذا كان رقم سداد ثابت للمكتب اتركه هنا (يتكرر لجميع العملاء)."
+        help_text="إن كنت تستخدم رقم سداد ثابت، اتركه هنا (لا يوجد منع تكرار)."
     )
 
     sadad_status = models.CharField(
@@ -531,6 +545,12 @@ class UserAgreement(models.Model):
     def save(self, *args, **kwargs):
         if not self.token:
             self.token = get_random_string(48)
+
+        # ✅ لو تم اختيار قالب ولم يكن النص مكتوب: انسخ تلقائياً من القالب
+        if self.template and (not self.agreement_text or self.agreement_text.strip() == ""):
+            self.title = self.template.title
+            self.agreement_text = self.template.agreement_text
+
         super().save(*args, **kwargs)
 
     @property
