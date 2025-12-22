@@ -1,71 +1,77 @@
-{% load static %}
+<!-- templates/accounts/payment_success.html -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تم الدفع بنجاح</title>
+  <meta charset="UTF-8" />
+  <title>نجاح الدفع - {{ agreement.title }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
-    <!-- Tailwind -->
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        success: '#16a34a'
-                    },
-                    fontFamily: {
-                        cairo: ['Cairo', 'sans-serif']
-                    }
-                }
-            }
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { gold:'#D4AF37', dark:'#0B0F1A', card:'#121826' },
+          fontFamily: { cairo:['Cairo','sans-serif'] }
         }
-    </script>
-
-    <style>
-        body { font-family: 'Cairo', sans-serif; }
-    </style>
+      }
+    }
+  </script>
 </head>
 
-<body class="bg-gray-100 min-h-screen flex items-center justify-center px-4">
+<body class="bg-dark text-white font-cairo min-h-screen">
+  {% include "header.html" %}
+  <div class="h-[80px]"></div>
 
-<div class="bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center">
+  <main class="max-w-3xl mx-auto px-4 pb-24">
+    <div class="bg-card border border-white/10 rounded-2xl p-6 md:p-8 space-y-5">
+      <h1 class="text-2xl md:text-3xl font-extrabold text-green-400">تم الدفع بنجاح</h1>
+      <p class="text-white/70">{{ agreement.title }}</p>
 
-    <!-- Icon -->
-    <div class="w-20 h-20 mx-auto mb-4 flex items-center justify-center rounded-full bg-green-100 text-success text-4xl">
-        ✓
-    </div>
+      <div class="bg-dark border border-white/10 rounded-xl p-4 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-white/70">رقم الإيصال</span>
+          <span class="font-extrabold text-gold">{{ agreement.receipt_number }}</span>
+        </div>
 
-    <!-- Title -->
-    <h2 class="text-2xl font-extrabold text-gray-800">
-        تمت عملية الدفع بنجاح
-    </h2>
+        <div class="flex items-center justify-between">
+          <span class="text-white/70">الإيصال PDF</span>
+          {% if receipt_url %}
+            <a href="{{ receipt_url }}" class="text-gold font-bold hover:underline">تحميل الإيصال</a>
+          {% else %}
+            <span class="text-white/40">غير متوفر</span>
+          {% endif %}
+        </div>
+      </div>
 
-    <!-- Message -->
-    <p class="text-gray-600 mt-3 leading-relaxed">
-        شكرًا لك، تم استلام الدفع بنجاح.<br>
-        سيتم البدء في إجراءات القضية فورًا.
-    </p>
+      <div class="bg-dark border border-white/10 rounded-xl p-4 space-y-3">
+        <p class="text-white/70 text-sm">إرسال للمحامي عبر واتساب (جاهز):</p>
 
-    <!-- Actions -->
-    <div class="mt-6 space-y-3">
-        <a href="{% url 'index' %}"
-           class="block w-full bg-success hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-lg transition">
-            العودة للصفحة الرئيسية
+        <textarea class="w-full rounded-xl bg-black/30 border border-white/10 p-3 text-sm" rows="3" readonly>{{ whatsapp_text }}</textarea>
+
+        <p class="text-xs text-white/50">
+          ملاحظة: الإرسال التلقائي لواتساب يحتاج مزود (Twilio/WhatsApp Cloud API). هنا جهزت النص والرابط فقط بدون خدمات مدفوعة.
+        </p>
+      </div>
+
+      <div class="flex flex-col md:flex-row gap-3">
+        <a href="{% url 'user_dashboard' %}"
+           class="bg-gold text-black px-6 py-3 rounded-xl font-extrabold text-center hover:opacity-90 w-full">
+          الذهاب للوحة العميل
         </a>
-
-        <a href="{% url 'dashboard' %}"
-           class="block w-full border border-gray-300 text-gray-700 font-semibold py-3 rounded-xl hover:bg-gray-50 transition">
-            الانتقال للوحة التحكم
+        <a href="{% url 'agreement_view' agreement.token %}"
+           class="px-6 py-3 rounded-xl font-bold text-center bg-white/10 hover:bg-white/15 w-full">
+          الرجوع للاتفاقية
         </a>
+      </div>
     </div>
+  </main>
 
-</div>
+  <div class="fixed bottom-3 left-3 z-40">
+    {# {% include "partials/sign_language.html" %} #}
+  </div>
 
+  {% include "footer.html" %}
 </body>
 </html>

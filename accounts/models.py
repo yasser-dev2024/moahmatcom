@@ -43,7 +43,7 @@ class User(AbstractUser):
     )
 
     # --------------------------------------------------
-    # ✅ حالة الحساب (تعليق/تفعيل حسب الاتفاقية والدفع)
+    # حالة الحساب
     # --------------------------------------------------
     ACCOUNT_STATUS = [
         ("active", "مفعل"),
@@ -77,7 +77,7 @@ class User(AbstractUser):
 
 
 # --------------------------------------------------
-# ملف المستخدم (إكمال البيانات)
+# ملف المستخدم
 # --------------------------------------------------
 class UserProfile(models.Model):
     user = models.OneToOneField(
@@ -222,7 +222,6 @@ class Case(models.Model):
         verbose_name="حالة القضية"
     )
 
-    # ✅ الإضافة المطلوبة: ملاحظات المحامي (تظهر للمستخدم)
     lawyer_notes = models.TextField(
         blank=True,
         null=True,
@@ -248,7 +247,7 @@ class Case(models.Model):
 
 
 # --------------------------------------------------
-# الردود والتواصل مع المحامي
+# الردود
 # --------------------------------------------------
 class CaseReply(models.Model):
     case = models.ForeignKey(
@@ -268,7 +267,6 @@ class CaseReply(models.Model):
         verbose_name="الرسالة"
     )
 
-    # ✅ مهم: تحكم بظهور الرد للعميل (افتراضيًا يظهر)
     is_visible_for_client = models.BooleanField(
         default=True,
         verbose_name="مرئي للعميل"
@@ -289,9 +287,51 @@ class CaseReply(models.Model):
 
 
 # --------------------------------------------------
-# ✅ اتفاقية المستخدم (ترسل من الأدمن لمستخدم واحد فقط)
+# ✅ قوالب الاتفاقيات (مكتبة الاتفاقيات)
+# --------------------------------------------------
+class AgreementTemplate(models.Model):
+    """
+    قوالب الاتفاقيات التي تُكتب مرة واحدة ثم يتم اختيارها عند إرسال اتفاقية لعميل.
+    """
+
+    title = models.CharField(
+        max_length=255,
+        verbose_name="عنوان الاتفاقية"
+    )
+
+    agreement_text = models.TextField(
+        verbose_name="نص الاتفاقية"
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name="مفعّلة"
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="تاريخ الإنشاء"
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name="آخر تحديث"
+    )
+
+    class Meta:
+        verbose_name = "قالب اتفاقية"
+        verbose_name_plural = "قوالب الاتفاقيات"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title
+
+
+# --------------------------------------------------
+# الاتفاقية + الدفع + الإيصال
 # --------------------------------------------------
 class UserAgreement(models.Model):
+
     STATUS = [
         ("sent", "مرسلة"),
         ("accepted", "تمت الموافقة"),
@@ -306,6 +346,16 @@ class UserAgreement(models.Model):
         on_delete=models.CASCADE,
         related_name="agreements",
         verbose_name="المستخدم"
+    )
+
+    # ✅ ربط الاتفاقية المرسلة بقالب (اختياري)
+    template = models.ForeignKey(
+        AgreementTemplate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sent_agreements",
+        verbose_name="قالب الاتفاقية"
     )
 
     token = models.CharField(
@@ -338,7 +388,6 @@ class UserAgreement(models.Model):
         verbose_name="نص الاتفاقية"
     )
 
-    # خيار 1: checkbox موافق
     accepted_checkbox = models.BooleanField(
         default=False,
         verbose_name="موافقة (مربع)"
@@ -350,7 +399,6 @@ class UserAgreement(models.Model):
         verbose_name="تاريخ الموافقة"
     )
 
-    # خيار 2: توقيع لمس (صورة)
     signature_image = models.ImageField(
         upload_to="agreements/signatures/",
         blank=True,
@@ -364,7 +412,6 @@ class UserAgreement(models.Model):
         verbose_name="تاريخ التوقيع"
     )
 
-    # الدفع
     payment_required = models.BooleanField(
         default=True,
         verbose_name="يتطلب دفع"
@@ -381,6 +428,81 @@ class UserAgreement(models.Model):
         verbose_name="حالة الدفع"
     )
 
+    # -------------------------------
+    # بيانات الدفع العامة
+    # -------------------------------
+    payment_amount = models.DecimalField(
+        "مبلغ الدفع",
+        max_digits=10,
+        decimal_places=2,
+        blank=True,
+        null=True
+    )
+
+    # ✅ رقم فاتورة المكتب/سداد الثابت الذي يظهر للعميل (يسمح بالتكرار)
+    # هذا هو الرقم الموحد الذي قلت تبيه لجميع العملاء
+    office_invoice_number = models.CharField(
+        "رقم الفاتورة الموحد",
+        max_length=32,
+        blank=True,
+        null=True,
+        help_text="ضع رقم الفاتورة الثابت للمكتب هنا (سيظهر للعميل)."
+    )
+
+    # رقم الإيصال (بعد الدفع) يختلف من عميل لعميل (اختياري)
+    receipt_number = models.CharField(
+        "رقم الإيصال",
+        max_length=64,
+        blank=True,
+        null=True
+    )
+
+    paid_at = models.DateTimeField(
+        "تاريخ الدفع",
+        blank=True,
+        null=True
+    )
+
+    receipt_pdf = models.FileField(
+        "إيصال الدفع PDF",
+        upload_to="payment_receipts/",
+        blank=True,
+        null=True
+    )
+
+    # -------------------------------
+    # ✅ بيانات سداد (SADAD)
+    # -------------------------------
+    # ✅ أهم إصلاح: ممنوع unique هنا لأنك تريد رقم ثابت للجميع
+    sadad_bill_number = models.CharField(
+        "رقم فاتورة سداد",
+        max_length=32,
+        blank=True,
+        null=True,
+        help_text="إذا كان رقم سداد ثابت للمكتب اتركه هنا (يتكرر لجميع العملاء)."
+    )
+
+    sadad_status = models.CharField(
+        "حالة سداد",
+        max_length=20,
+        choices=[
+            ("not_created", "لم تُنشأ"),
+            ("pending", "بانتظار السداد"),
+            ("paid", "مدفوعة"),
+            ("expired", "منتهية"),
+        ],
+        default="not_created"
+    )
+
+    sadad_expires_at = models.DateTimeField(
+        "تاريخ انتهاء سداد",
+        blank=True,
+        null=True
+    )
+
+    # -------------------------------
+    # حالة الاتفاقية العامة
+    # -------------------------------
     status = models.CharField(
         max_length=30,
         choices=STATUS,
@@ -413,4 +535,10 @@ class UserAgreement(models.Model):
 
     @property
     def is_completed(self):
-        return self.status in ("paid",) or (self.payment_required is False and self.status in ("accepted", "signed"))
+        return (
+            self.status == "paid"
+            or (
+                not self.payment_required
+                and self.status in ("accepted", "signed")
+            )
+        )

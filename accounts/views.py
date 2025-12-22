@@ -1,3 +1,4 @@
+# accounts/views.py
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
@@ -12,9 +13,15 @@ from django.views.decorators.csrf import csrf_protect
 
 import uuid
 import base64
+from io import BytesIO
+
 from django.core.files.base import ContentFile
 
 from .models import UserProfile, Case, CaseReply, UserAgreement
+
+# PDF (ReportLab)
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
 
 User = get_user_model()
 
@@ -25,7 +32,6 @@ User = get_user_model()
 def _get_latest_agreement(user):
     if not user.is_authenticated:
         return None
-    # الأحدث أولاً
     return user.agreements.order_by('-created_at').first()
 
 
@@ -47,6 +53,53 @@ def _redirect_if_suspended(request, allow_dashboard=False):
                 return redirect('agreement_view', token=latest.token)
             return redirect('account_suspended')
     return None
+
+
+# --------------------------------------------------
+# PDF Receipt Generator
+# --------------------------------------------------
+def _build_receipt_pdf(agreement: UserAgreement) -> ContentFile:
+    """
+    Generates a simple PDF receipt as ContentFile.
+    Note: Arabic shaping in PDFs can require additional font/shaping libs.
+    This receipt uses mostly English labels to avoid broken Arabic rendering.
+    """
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    paid_at = getattr(agreement, "paid_at", None) or timezone.now()
+    receipt_number = getattr(agreement, "receipt_number", "") or f"RCPT-{paid_at.strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
+    amount = getattr(agreement, "payment_amount", None)
+    if not amount:
+        # fallback: if you don't have payment_amount field, show placeholder
+        amount_text = "N/A"
+    else:
+        amount_text = f"{amount} SAR"
+
+    # Header
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(60, height - 80, "Payment Receipt")
+
+    c.setFont("Helvetica", 11)
+    c.drawString(60, height - 110, f"Receipt No: {receipt_number}")
+    c.drawString(60, height - 130, f"Date: {paid_at.strftime('%Y-%m-%d %H:%M')}")
+    c.drawString(60, height - 150, f"Customer: {agreement.user.username}")
+    c.drawString(60, height - 170, f"Agreement Title: {agreement.title}")
+
+    c.drawString(60, height - 210, f"Amount: {amount_text}")
+    c.drawString(60, height - 230, "Status: PAID")
+
+    # Footer
+    c.setFont("Helvetica-Oblique", 9)
+    c.drawString(60, 60, "This receipt is system-generated.")
+
+    c.showPage()
+    c.save()
+
+    pdf = buffer.getvalue()
+    buffer.close()
+    return ContentFile(pdf, name=f"receipt_{agreement.user.username}_{paid_at.strftime('%Y%m%d_%H%M%S')}.pdf")
 
 
 # --------------------------------------------------
@@ -116,7 +169,6 @@ def register_view(request):
             account_status="active"
         )
 
-        # ✅ إصلاح خلط الجلسات: نظّف أي جلسة قديمة ثم سجّل دخول جديد مع تدوير المفتاح
         try:
             if request.user.is_authenticated:
                 logout(request)
@@ -149,7 +201,6 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
 
         if user:
-            # ✅ إصلاح خلط الجلسات: نظّف أي جلسة قديمة ثم سجّل دخول جديد + تدوير مفتاح الجلسة
             try:
                 if request.user.is_authenticated:
                     logout(request)
@@ -162,7 +213,6 @@ def login_view(request):
             except Exception:
                 pass
 
-            # ✅ بدل ما نوديه مباشرة للاتفاقية: نخليه يروح للداشبورد عشان يظهر صندوق الاتفاقية
             if user.account_status in ("pending_agreement", "payment_pending"):
                 return redirect('user_dashboard')
 
@@ -179,7 +229,6 @@ def login_view(request):
 # --------------------------------------------------
 @require_http_methods(["GET", "POST"])
 def logout_view(request):
-    # ✅ تفريغ كامل للجلسة لتفادي بقايا session تسبب خلط
     try:
         logout(request)
         request.session.flush()
@@ -207,7 +256,6 @@ def user_dashboard(request):
     """
     صفحة المستخدم – عرض البيانات والقضايا + إظهار صندوق الاتفاقية إذا الحساب معلّق
     """
-    # ✅ هنا نسمح للداشبورد حتى لو معلّق
     redir = _redirect_if_suspended(request, allow_dashboard=True)
     if redir:
         return redir
@@ -222,7 +270,7 @@ def user_dashboard(request):
         'cases': cases,
         'documents': request.user.documents.all(),
         'now': timezone.now(),
-        'agreement': latest_agreement,  # ✅ هذا كان ناقص عندك
+        'agreement': latest_agreement,
     })
 
 
@@ -305,11 +353,9 @@ def case_create(request):
 def agreement_view(request, token):
     agreement = get_object_or_404(UserAgreement, token=token)
 
-    # حماية: الاتفاقية تخص نفس المستخدم فقط
     if agreement.user_id != request.user.id:
         return HttpResponseForbidden("غير مصرح لك بالوصول لهذه الاتفاقية.")
 
-    # لو تم الدفع/اكتمال، نخليه Active
     if agreement.is_completed:
         if request.user.account_status != "active":
             request.user.account_status = "active"
@@ -324,16 +370,13 @@ def agreement_view(request, token):
             messages.error(request, "اختر الموافقة بالمربع أو قم بالتوقيع.")
             return redirect('agreement_view', token=agreement.token)
 
-        # خيار 1: checkbox
         if accept_checkbox:
             agreement.accepted_checkbox = True
             agreement.accepted_at = timezone.now()
             agreement.status = "accepted"
 
-        # خيار 2: توقيع Canvas (base64)
         if signature_data:
             try:
-                # signature_data format: data:image/png;base64,....
                 if "base64," in signature_data:
                     header, b64 = signature_data.split("base64,", 1)
                 else:
@@ -348,7 +391,6 @@ def agreement_view(request, token):
                 messages.error(request, "تعذر حفظ التوقيع. جرّب مرة أخرى.")
                 return redirect('agreement_view', token=agreement.token)
 
-        # بعد قبول/توقيع: حالة الحساب تنتقل للدفع إذا مطلوب
         if agreement.payment_required:
             agreement.payment_status = "pending"
             agreement.status = "payment_pending"
@@ -368,9 +410,10 @@ def agreement_view(request, token):
 
 
 # --------------------------------------------------
-# Payment Page (Placeholder)
+# Payment Page (NEW UI + PDF Receipt + Success Page)
 # --------------------------------------------------
 @login_required
+@csrf_protect
 def payment_page(request, token):
     agreement = get_object_or_404(UserAgreement, token=token)
 
@@ -378,21 +421,77 @@ def payment_page(request, token):
         return HttpResponseForbidden("غير مصرح لك بالوصول لهذه الصفحة.")
 
     # لا يظهر الدفع إلا بعد موافقة/توقيع
-    if agreement.status not in ("payment_pending",):
+    if agreement.status not in ("payment_pending", "paid"):
         return redirect('agreement_view', token=agreement.token)
 
-    # مؤقتًا: زر "تأكيد الدفع" للتجربة
+    # لو مدفوع مسبقًا: روح لصفحة النجاح
+    if agreement.status == "paid" and getattr(agreement, "payment_status", "") == "paid":
+        return redirect('payment_success', token=agreement.token)
+
     if request.method == "POST":
+        # ✅ هنا لاحقًا تربط بوابة الدفع الفعلية
+        # الآن: نعتبر الدفع تم، ونولّد إيصال
+        now = timezone.now()
+
+        # إعداد بيانات إيصال (حقول اختيارية—ستُضاف في models.py)
+        if not getattr(agreement, "receipt_number", None):
+            agreement.receipt_number = f"RCPT-{now.strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
+
+        agreement.paid_at = now
         agreement.payment_status = "paid"
         agreement.status = "paid"
+
+        # Generate & attach PDF (requires receipt_pdf FileField in model)
+        try:
+            receipt_file = _build_receipt_pdf(agreement)
+            # هذا السطر يحتاج وجود receipt_pdf = FileField في UserAgreement
+            agreement.receipt_pdf.save(receipt_file.name, receipt_file, save=False)
+        except Exception:
+            # حتى لو فشل الـ PDF ما نخرب الدفع — لكن نبلغ برسالة
+            messages.warning(request, "تم الدفع، لكن تعذر توليد إيصال PDF. سنصلحها قريبًا.")
+
         agreement.save()
 
+        # تفعيل الحساب
         request.user.account_status = "active"
         request.user.save(update_fields=["account_status"])
 
-        messages.success(request, "تم تفعيل الحساب بعد الدفع.")
-        return redirect('user_dashboard')
+        messages.success(request, "تم الدفع بنجاح.")
+        return redirect('payment_success', token=agreement.token)
 
     return render(request, "accounts/payment.html", {
         "agreement": agreement
+    })
+
+
+# --------------------------------------------------
+# Payment Success Page
+# --------------------------------------------------
+@login_required
+def payment_success(request, token):
+    agreement = get_object_or_404(UserAgreement, token=token)
+
+    if agreement.user_id != request.user.id:
+        return HttpResponseForbidden("غير مصرح لك بالوصول لهذه الصفحة.")
+
+    if agreement.status != "paid":
+        return redirect('payment_page', token=agreement.token)
+
+    # رسالة واتساب جاهزة للمحامي (نحتاج رقم المحامي محفوظ بمكان ما لاحقًا)
+    # الآن: نجهز نص فقط + رابط إيصال إن توفر
+    receipt_url = ""
+    try:
+        if getattr(agreement, "receipt_pdf", None) and agreement.receipt_pdf:
+            receipt_url = agreement.receipt_pdf.url
+    except Exception:
+        receipt_url = ""
+
+    whatsapp_text = f"تم دفع اتفاقية: {agreement.title} | العميل: {agreement.user.username} | رقم الإيصال: {getattr(agreement, 'receipt_number', '')}"
+    if receipt_url:
+        whatsapp_text += f" | إيصال: {receipt_url}"
+
+    return render(request, "accounts/payment_success.html", {
+        "agreement": agreement,
+        "receipt_url": receipt_url,
+        "whatsapp_text": whatsapp_text,
     })

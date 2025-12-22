@@ -1,14 +1,21 @@
+<!-- templates/accounts/payment.html -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <title>الدفع</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <title>الدفع - {{ agreement.title }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
   <script>
     tailwind.config = {
-      theme: { extend: { colors: { gold:'#D4AF37', dark:'#0B0F1A', card:'#121826' }, fontFamily: { cairo:['Cairo','sans-serif'] } } }
+      theme: {
+        extend: {
+          colors: { gold:'#D4AF37', dark:'#0B0F1A', card:'#121826' },
+          fontFamily: { cairo:['Cairo','sans-serif'] }
+        }
+      }
     }
   </script>
 </head>
@@ -17,27 +24,119 @@
   {% include "header.html" %}
   <div class="h-[80px]"></div>
 
-  <div class="max-w-xl mx-auto px-4 py-10">
-    <div class="bg-card border border-white/10 rounded-2xl p-6 space-y-4">
-      <h1 class="text-xl font-extrabold text-gold">صفحة الدفع</h1>
-      <p class="text-gray-300 leading-relaxed">
-        هذه صفحة الدفع الخاصة بك. بعد إتمام الدفع سيتم تفعيل الحساب تلقائيًا.
-      </p>
+  <main class="max-w-3xl mx-auto px-4 pb-24">
+    <div class="bg-card border border-white/10 rounded-2xl p-6 md:p-8 space-y-5">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h1 class="text-2xl md:text-3xl font-extrabold text-gold">الدفع</h1>
+          <p class="text-white/60 text-sm mt-1">{{ agreement.title }}</p>
+        </div>
+        <div class="text-xs text-white/50">
+          Token: {{ agreement.token }}
+        </div>
+      </div>
 
-      <form method="post">
+      {% if messages %}
+        <div class="space-y-2">
+          {% for message in messages %}
+            <div class="rounded-xl px-4 py-3 border border-white/10 bg-white/5 text-sm">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="bg-dark border border-white/10 rounded-xl p-4 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-white/70">حالة الدفع</span>
+          <span class="font-bold text-gold">{{ agreement.payment_status }}</span>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <span class="text-white/70">المبلغ</span>
+          <span class="font-extrabold text-xl">
+            {% if agreement.payment_amount %}
+              {{ agreement.payment_amount }} SAR
+            {% else %}
+              — SAR
+            {% endif %}
+          </span>
+        </div>
+
+        <p class="text-xs text-white/50">
+          ملاحظة: الدفع الآن “محاكاة” إلى أن تربط بوابة الدفع الفعلية (تابي/هايبر باي...).
+        </p>
+      </div>
+
+      <button id="openPay"
+              class="bg-gold text-black px-6 py-3 rounded-xl font-extrabold w-full hover:opacity-90">
+        ادفع الآن
+      </button>
+
+      <a href="{% url 'agreement_view' agreement.token %}"
+         class="block text-center text-white/60 hover:text-white text-sm">
+        رجوع للاتفاقية
+      </a>
+    </div>
+  </main>
+
+  <!-- Modal -->
+  <div id="payModal" class="fixed inset-0 hidden items-center justify-center p-4 z-50">
+    <div class="absolute inset-0 bg-black/60"></div>
+
+    <div class="relative w-full max-w-md bg-card border border-white/10 rounded-2xl p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-extrabold text-gold">تأكيد الدفع</h2>
+        <button id="closePay" class="text-white/70 hover:text-white font-bold">✕</button>
+      </div>
+
+      <div class="bg-dark border border-white/10 rounded-xl p-4">
+        <div class="flex items-center justify-between">
+          <span class="text-white/70 text-sm">الإجمالي</span>
+          <span class="text-xl font-extrabold">
+            {% if agreement.payment_amount %}
+              {{ agreement.payment_amount }} SAR
+            {% else %}
+              — SAR
+            {% endif %}
+          </span>
+        </div>
+        <p class="text-xs text-white/50 mt-2">سيتم إنشاء إيصال PDF بعد الدفع تلقائيًا.</p>
+      </div>
+
+      <form method="post" class="space-y-3">
         {% csrf_token %}
         <button type="submit"
                 class="bg-gold text-black px-6 py-3 rounded-xl font-extrabold w-full hover:opacity-90">
-          تأكيد الدفع (تجربة)
+          تأكيد الدفع
+        </button>
+        <button type="button" id="cancelPay"
+                class="px-6 py-3 rounded-xl font-bold w-full bg-white/10 hover:bg-white/15">
+          إلغاء
         </button>
       </form>
-
-      <p class="text-gray-500 text-xs">
-        ملاحظة: ربط بوابة الدفع سيتم إضافته لاحقًا هنا (مدى/Apple Pay/…).
-      </p>
     </div>
   </div>
 
+  <!-- مقاطع لغة الإشارة (ثابت أسفل يسار) -->
+  <div class="fixed bottom-3 left-3 z-40">
+    {# {% include "partials/sign_language.html" %} #}
+  </div>
+
   {% include "footer.html" %}
+
+  <script>
+    const modal = document.getElementById('payModal');
+    const openBtn = document.getElementById('openPay');
+    const closeBtn = document.getElementById('closePay');
+    const cancelBtn = document.getElementById('cancelPay');
+
+    function openModal(){ modal.classList.remove('hidden'); modal.classList.add('flex'); }
+    function closeModal(){ modal.classList.add('hidden'); modal.classList.remove('flex'); }
+
+    openBtn.addEventListener('click', openModal);
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+  </script>
 </body>
 </html>
