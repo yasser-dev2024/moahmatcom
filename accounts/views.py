@@ -10,14 +10,19 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.http import HttpResponseForbidden
 from django.views.decorators.csrf import csrf_protect
+from django.conf import settings
+from django.core.mail import mail_admins
 
 import uuid
 import base64
+import logging
+from urllib.parse import quote
 from django.core.files.base import ContentFile
 
 from .models import UserProfile, Case, CaseReply, UserAgreement
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 # --------------------------------------------------
@@ -142,7 +147,6 @@ def login_view(request):
             except Exception:
                 pass
 
-            # لو حسابه معلّق، ودّه للداشبورد عشان يظهر صندوق الاتفاقية
             if user.account_status in ("pending_agreement", "payment_pending"):
                 return redirect("user_dashboard")
 
@@ -266,7 +270,7 @@ def case_create(request):
 
 
 # --------------------------------------------------
-# Agreement View
+# Agreement View (🔒 مقفلة أثناء under_review)
 # --------------------------------------------------
 @login_required
 @csrf_protect
@@ -275,6 +279,14 @@ def agreement_view(request, token):
 
     if agreement.user_id != request.user.id:
         return HttpResponseForbidden("غير مصرح لك بالوصول لهذه الاتفاقية.")
+
+    # 🔒 قفل الاتفاقية أثناء مراجعة المكتب
+    if agreement.status == "under_review":
+        return render(
+            request,
+            "accounts/agreement_locked.html",
+            {"agreement": agreement},
+        )
 
     # لو مدفوع = فعل الحساب
     if agreement.is_completed:
@@ -312,7 +324,6 @@ def agreement_view(request, token):
                 messages.error(request, "تعذر حفظ التوقيع. جرّب مرة أخرى.")
                 return redirect("agreement_view", token=agreement.token)
 
-        # بعد الموافقة/التوقيع: لو يتطلب دفع -> مرحلة الدفع
         if agreement.payment_required:
             agreement.status = "payment_pending"
             request.user.account_status = "payment_pending"
@@ -320,7 +331,6 @@ def agreement_view(request, token):
             agreement.save()
             return redirect("payment_page", token=agreement.token)
 
-        # لو ما يتطلب دفع
         request.user.account_status = "active"
         request.user.save(update_fields=["account_status"])
         agreement.save()
@@ -332,7 +342,7 @@ def agreement_view(request, token):
 
 
 # --------------------------------------------------
-# ✅ Payment Page (Bank Transfer + Mandatory Receipt)
+# Payment Page (🔒 مسموح فقط عند payment_pending)
 # --------------------------------------------------
 @login_required
 @csrf_protect
@@ -342,33 +352,68 @@ def payment_page(request, token):
     if agreement.user_id != request.user.id:
         return HttpResponseForbidden("غير مصرح لك بالوصول.")
 
-    # لا يسمح بالدفع إلا بعد الموافقة/التوقيع
+    # 🔒 يمنع الدفع إذا كانت under_review أو غيرها
     if agreement.status != "payment_pending":
-        return redirect("agreement_view", token=agreement.token)
+        return redirect("payment_pending_review", token=agreement.token)
+
+    # ====== بقية كود الدفع كما هو عندك بدون أي تغيير ======
+
+    whatsapp_phone_international = "966531991910"
+
+    def _build_whatsapp_url(text: str) -> str:
+        return f"https://wa.me/{whatsapp_phone_international}?text={quote(text)}"
+
+    receipt_image_url = ""
+    try:
+        if agreement.client_receipt_image:
+            receipt_image_url = request.build_absolute_uri(agreement.client_receipt_image.url)
+    except Exception:
+        receipt_image_url = ""
+
+    whatsapp_text = (
+        f"تم إرسال إيصال دفع جديد للمراجعة.\n"
+        f"العميل: {agreement.user.username}\n"
+        f"عنوان الاتفاقية: {agreement.title}\n"
+        f"المبلغ: SAR {agreement.payment_amount}\n"
+        f"رقم الإيصال: {agreement.client_payment_receipt or '—'}\n"
+        f"صورة الإيصال: {receipt_image_url or '—'}\n"
+        f"رمز الاتفاقية: {agreement.token}"
+    )
+    whatsapp_url = _build_whatsapp_url(whatsapp_text)
 
     if request.method == "POST":
-        # ✅ هذا الاسم يطابق القالب الذي أرسلته أنت
         client_receipt = request.POST.get("client_payment_receipt", "").strip()
+        receipt_image = request.FILES.get("client_receipt_image")
 
         if not client_receipt:
             messages.error(request, "رقم إيصال الدفع مطلوب ولا يمكن الإرسال بدونه.")
             return redirect("payment_page", token=agreement.token)
 
-        # ✅ نحفظه في receipt_number (موجود في موديلك)
-        agreement.receipt_number = client_receipt
-        agreement.paid_at = timezone.now()
+        if not receipt_image:
+            messages.error(request, "صورة الإيصال مطلوبة. ارفع صورة واضحة ثم أعد الإرسال.")
+            return redirect("payment_page", token=agreement.token)
 
-        # ❗ الحالة تبقى payment_pending (بانتظار اعتماد المكتب)
-        agreement.status = "payment_pending"
-        agreement.save(update_fields=["receipt_number", "paid_at", "status"])
+        allowed_content_types = {"image/jpeg", "image/png", "image/webp"}
+        content_type = getattr(receipt_image, "content_type", "") or ""
+        if content_type not in allowed_content_types:
+            messages.error(request, "صيغة الصورة غير مدعومة. استخدم JPG أو PNG أو WEBP.")
+            return redirect("payment_page", token=agreement.token)
 
-        # ✅ تحويل لصفحة انتظار اعتماد المكتب (الصفحة اللي طلبتها)
+        max_size_mb = 8
+        if receipt_image.size > max_size_mb * 1024 * 1024:
+            messages.error(request, f"حجم الصورة كبير. الحد الأقصى {max_size_mb}MB.")
+            return redirect("payment_page", token=agreement.token)
+
+        agreement.client_payment_receipt = client_receipt
+        agreement.client_paid_at = timezone.now()
+        agreement.client_receipt_image = receipt_image
+        agreement.status = "under_review"
+        agreement.save()
+
+        messages.success(request, "تم إرسال رقم الإيصال وصورته بنجاح. بانتظار موافقة المكتب.")
         return redirect("payment_pending_review", token=agreement.token)
 
-    # رقم الفاتورة اللي يظهر للعميل:
-    # نستخدم sadad_bill_number لأنه موجود في موديلك.
-    # إذا ما حطيته من الأدمن بيظهر فارغ.
-    office_invoice_number = agreement.sadad_bill_number or "—"
+    office_invoice_number = agreement.office_invoice_number or agreement.sadad_bill_number or "—"
 
     return render(
         request,
@@ -379,12 +424,15 @@ def payment_page(request, token):
             "office_account_name": "مكتب عبدالمجيد الزمزمي للمحاماة",
             "office_iban": "SA00 0000 0000 0000 0000 0000",
             "office_invoice_number": office_invoice_number,
+            "whatsapp_text": whatsapp_text,
+            "whatsapp_url": whatsapp_url,
+            "receipt_image_url": receipt_image_url,
         },
     )
 
 
 # --------------------------------------------------
-# ✅ Payment Pending Review Page (بانتظار اعتماد المكتب)
+# Payment Pending Review Page
 # --------------------------------------------------
 @login_required
 def payment_pending_review(request, token):
@@ -393,21 +441,18 @@ def payment_pending_review(request, token):
     if agreement.user_id != request.user.id:
         return HttpResponseForbidden("غير مصرح لك بالوصول.")
 
-    # إذا ما أرسل رقم إيصال، رجعه لصفحة الدفع
-    if not agreement.receipt_number:
+    if not agreement.client_payment_receipt or not agreement.client_receipt_image:
         return redirect("payment_page", token=agreement.token)
 
     return render(
         request,
         "accounts/payment_pending_review.html",
-        {
-            "agreement": agreement
-        },
+        {"agreement": agreement},
     )
 
 
 # --------------------------------------------------
-# Payment Success (بعد اعتماد المكتب فقط)
+# Payment Success
 # --------------------------------------------------
 @login_required
 def payment_success(request, token):

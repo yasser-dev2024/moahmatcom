@@ -2,6 +2,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils import timezone
+from django.contrib import messages
 
 from .models import (
     User,
@@ -14,7 +15,7 @@ from .models import (
 )
 
 # --------------------------------------------------
-# User Admin (مهم لحل autocomplete_fields)
+# User Admin
 # --------------------------------------------------
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
@@ -43,7 +44,7 @@ class UserAdmin(BaseUserAdmin):
         "phone_number",
     )
 
-    ordering = ("-date_joined",)
+    ordering = ("username",)
 
 
 # --------------------------------------------------
@@ -53,14 +54,39 @@ class UserAdmin(BaseUserAdmin):
 class AgreementTemplateAdmin(admin.ModelAdmin):
     list_display = ("title", "is_active", "created_at", "updated_at")
     list_filter = ("is_active",)
-    search_fields = ("title", "agreement_text")
+    search_fields = ("title",)
     ordering = ("-created_at",)
 
 
 # --------------------------------------------------
 # Admin Actions
 # --------------------------------------------------
-@admin.action(description="اعتماد الدفع (تفعيل الاتفاقية والحساب)")
+@admin.action(description="📤 إرسال الاتفاقية للعميل")
+def send_agreement(modeladmin, request, queryset):
+    sent_count = 0
+
+    for ag in queryset:
+        if ag.status == "sent":
+            continue
+
+        ag.status = "sent"
+        ag.sent_at = timezone.now()
+        ag.save(update_fields=["status", "sent_at"])
+
+        user = ag.user
+        if user.account_status == "active":
+            user.account_status = "pending_agreement"
+            user.save(update_fields=["account_status"])
+
+        sent_count += 1
+
+    messages.success(
+        request,
+        f"تم إرسال {sent_count} اتفاقية للعميل بنجاح."
+    )
+
+
+@admin.action(description="✅ اعتماد الدفع (تفعيل الاتفاقية والحساب)")
 def approve_payment(modeladmin, request, queryset):
     now = timezone.now()
 
@@ -79,7 +105,7 @@ def approve_payment(modeladmin, request, queryset):
             user.save(update_fields=["account_status"])
 
 
-@admin.action(description="رفض الدفع (إرجاعها لانتظار الدفع)")
+@admin.action(description="❌ رفض الدفع (إرجاعها لانتظار الدفع)")
 def reject_payment(modeladmin, request, queryset):
     for ag in queryset:
         ag.status = "payment_pending"
@@ -97,7 +123,6 @@ class UserAgreementAdmin(admin.ModelAdmin):
         "status",
         "payment_method",
         "payment_amount",
-        "office_invoice_number",
         "client_payment_receipt",
         "created_at",
     )
@@ -120,6 +145,7 @@ class UserAgreementAdmin(admin.ModelAdmin):
     )
 
     actions = [
+        send_agreement,     # ← زر إرسال الاتفاقية
         approve_payment,
         reject_payment,
     ]
@@ -129,10 +155,20 @@ class UserAgreementAdmin(admin.ModelAdmin):
             "fields": ("user", "template")
         }),
         ("بيانات الاتفاقية", {
-            "fields": ("office_name", "office_logo", "title", "agreement_text", "token")
+            "fields": (
+                "office_name",
+                "office_logo",
+                "title",
+                "agreement_text",
+            )
         }),
         ("الموافقة / التوقيع", {
-            "fields": ("accepted_checkbox", "accepted_at", "signature_image", "signed_at")
+            "fields": (
+                "accepted_checkbox",
+                "accepted_at",
+                "signature_image",
+                "signed_at",
+            )
         }),
         ("الدفع", {
             "fields": (
@@ -140,9 +176,8 @@ class UserAgreementAdmin(admin.ModelAdmin):
                 "payment_method",
                 "payment_amount",
                 "office_invoice_number",
-                "sadad_bill_number",
                 "client_payment_receipt",
-                "client_paid_at",
+                "client_receipt_image",
                 "receipt_number",
                 "paid_at",
                 "receipt_pdf",
@@ -161,7 +196,7 @@ class UserAgreementAdmin(admin.ModelAdmin):
 
 
 # --------------------------------------------------
-# تسجيل باقي الموديلات
+# Register other models
 # --------------------------------------------------
 admin.site.register(UserProfile)
 admin.site.register(UserDocument)

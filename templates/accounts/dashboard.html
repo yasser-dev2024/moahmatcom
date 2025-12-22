@@ -72,6 +72,47 @@
     </div>
   {% endif %}
 
+  <!-- ================= بانتظار موافقة المكتب (بعد إرسال الإيصال والصورة) ================= -->
+  {% if agreement and agreement.status == "under_review" %}
+    <div class="bg-card rounded-3xl p-6 sm:p-8 border border-yellow-400/40 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-extrabold text-yellow-400">⏳ بانتظار موافقة المكتب</h2>
+          <p class="text-sm text-gray-300 mt-1">
+            تم استلام رقم الإيصال وصورته بنجاح، وسيتم مراجعته من قبل المكتب أو المحامي المختص.
+          </p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3">
+          <a href="{% url 'payment_pending_review' agreement.token %}"
+             class="bg-yellow-500 hover:bg-yellow-600 text-black px-6 py-3 rounded-xl font-bold transition text-center">
+            عرض حالة الإيصال
+          </a>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="bg-dark rounded-xl p-4 border border-white/10">
+          <p class="text-xs text-gray-400 mb-1">رقم الإيصال</p>
+          <p class="text-lg font-bold">{{ agreement.client_payment_receipt }}</p>
+        </div>
+
+        <div class="bg-dark rounded-xl p-4 border border-white/10">
+          <p class="text-xs text-gray-400 mb-1">المبلغ</p>
+          <p class="text-lg font-bold">SAR {{ agreement.payment_amount }}</p>
+        </div>
+      </div>
+
+      {% if agreement.client_receipt_image %}
+        <div class="bg-dark rounded-xl p-4 border border-white/10">
+          <p class="text-xs text-gray-400 mb-2">صورة الإيصال</p>
+          <img src="{{ agreement.client_receipt_image.url }}" alt="صورة الإيصال"
+               class="w-full max-h-96 object-contain rounded-xl border border-white/10">
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
   <!-- ===== العنوان ===== -->
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <h1 class="text-2xl font-bold">

@@ -52,7 +52,7 @@
         </ul>
 
         <p class="mt-4 text-yellow-400">
-            ⚠️ بعد التحويل، أدخل رقم إيصال الدفع ثم اضغط إرسال.
+            ⚠️ بعد التحويل، أدخل رقم إيصال الدفع وأرفق صورة الإيصال ثم اضغط إرسال.
         </p>
     </div>
 
@@ -64,9 +64,9 @@
         </div>
     </div>
 
-    <!-- نموذج إدخال رقم الإيصال -->
+    <!-- نموذج إدخال رقم الإيصال + صورة -->
     {% if not agreement.client_payment_receipt %}
-        <form method="post" action="">
+        <form method="post" action="" enctype="multipart/form-data">
             {% csrf_token %}
 
             <label class="block mb-2 text-sm">
@@ -81,20 +81,32 @@
                 class="w-full rounded-lg px-4 py-3 text-black mb-4"
             >
 
+            <label class="block mb-2 text-sm">
+                صورة إيصال الدفع <span class="text-red-500">*</span>
+            </label>
+
+            <input
+                type="file"
+                name="client_receipt_image"
+                accept="image/*"
+                required
+                class="w-full bg-white text-black rounded-lg px-3 py-2 mb-4"
+            >
+
             <button
                 type="submit"
                 class="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 rounded-xl">
-                إرسال رقم الإيصال
+                إرسال رقم الإيصال وصورته
             </button>
         </form>
     {% else %}
-        <div class="mt-6 text-center bg-green-700/30 p-4 rounded-xl">
-            ✔ تم إرسال رقم الإيصال بنجاح  
+        <div class="mt-6 text-center bg-yellow-700/30 p-4 rounded-xl">
+            ⏳ تم إرسال الإيصال بنجاح  
             <div class="text-sm text-gray-300 mt-1">
                 رقم الإيصال: {{ agreement.client_payment_receipt }}
             </div>
-            <div class="text-xs text-yellow-400 mt-2">
-                بانتظار اعتماد المكتب
+            <div class="text-xs text-yellow-400 mt-2 font-bold">
+                بانتظار موافقة المكتب
             </div>
         </div>
     {% endif %}

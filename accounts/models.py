@@ -8,6 +8,25 @@ import uuid
 
 
 # --------------------------------------------------
+# Helpers: upload paths
+# --------------------------------------------------
+def upload_client_receipt_image(instance, filename: str) -> str:
+    """
+    تخزين صورة إيصال العميل ضمن مسار منظم:
+    media/clients/<username>/receipts/<filename>
+    """
+    username = "unknown"
+    try:
+        if instance and getattr(instance, "user", None):
+            username = instance.user.username or "unknown"
+    except Exception:
+        username = "unknown"
+
+    safe_filename = filename.replace("\\", "/").split("/")[-1]
+    return f"clients/{username}/receipts/{safe_filename}"
+
+
+# --------------------------------------------------
 # المستخدم
 # --------------------------------------------------
 class User(AbstractUser):
@@ -353,6 +372,16 @@ class UserAgreement(models.Model):
         verbose_name="المستخدم"
     )
 
+    # ✅ ربط الاتفاقية بقضية (اختياري) لتجميع الإيصال ضمن مجلد القضية لاحقًا
+    case = models.ForeignKey(
+        Case,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="agreements",
+        verbose_name="القضية المرتبطة"
+    )
+
     # ✅ ربط الاتفاقية المرسلة بقالب (اختياري)
     template = models.ForeignKey(
         AgreementTemplate,
@@ -460,6 +489,20 @@ class UserAgreement(models.Model):
 
     client_paid_at = models.DateTimeField(
         "تاريخ إدخال الإيصال من العميل",
+        blank=True,
+        null=True
+    )
+
+    # ✅ صورة الإيصال التي يرفعها العميل (إجباري حسب طلبك)
+    client_receipt_image = models.ImageField(
+        "صورة إيصال العميل",
+        upload_to=upload_client_receipt_image,
+        blank=True,
+        null=True
+    )
+
+    client_receipt_image_uploaded_at = models.DateTimeField(
+        "تاريخ رفع صورة الإيصال",
         blank=True,
         null=True
     )

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>بانتظار موافقة المكتب</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body class="bg-[#0B0F1A] text-white font-cairo min-h-screen">
+
+{% include "header.html" %}
+<div class="h-[80px]"></div>
+
+<div class="max-w-xl mx-auto bg-[#121826] rounded-3xl p-8 text-center border border-yellow-400/40">
+
+  <h1 class="text-2xl font-extrabold text-yellow-400 mb-4">
+    ⏳ بانتظار موافقة المكتب
+  </h1>
+
+  <p class="text-gray-300 leading-loose mb-6">
+    تم استلام رقم الإيصال وصورة الإيصال بنجاح.<br>
+    الاتفاقية الآن تحت مراجعة المكتب، ولا يمكن تعديلها أو الدفع مرة أخرى.
+  </p>
+
+  <div class="bg-black/30 rounded-xl p-4 mb-4">
+    <p class="text-sm text-gray-400">رقم الإيصال</p>
+    <p class="text-lg font-bold">{{ agreement.client_payment_receipt }}</p>
+  </div>
+
+  <div class="bg-black/30 rounded-xl p-4 mb-6">
+    <p class="text-sm text-gray-400">المبلغ</p>
+    <p class="text-lg font-bold">SAR {{ agreement.payment_amount }}</p>
+  </div>
+
+  <p class="text-xs text-gray-400">
+    سيتم إشعارك فور اعتماد الدفع من قبل المكتب.
+  </p>
+
+</div>
+
+{% include "footer.html" %}
+</body>
+</html>
