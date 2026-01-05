@@ -1,79 +1,83 @@
 # accounts/middleware.py
 import time
-import hashlib
+import logging
+from django.utils.deprecation import MiddlewareMixin
 from django.core.cache import cache
 from django.http import HttpResponseForbidden
-from django.utils.deprecation import MiddlewareMixin
+
+logger = logging.getLogger("security")
 
 
-def _ip_from_request(request) -> str:
-    # لا تثق بالـ X-Forwarded-For إلا إذا كنت خلف Proxy مضبوط. في بيئتك المحلية خله بسيط.
-    ip = request.META.get("REMOTE_ADDR", "") or ""
-    return ip.strip()[:64]
-
-
-def _cache_key(prefix: str, parts: list[str]) -> str:
-    raw = prefix + ":" + "|".join([p or "" for p in parts])
-    h = hashlib.sha256(raw.encode("utf-8")).hexdigest()
-    return f"{prefix}:{h}"
-
-
-class RateLimitMiddleware(MiddlewareMixin):
+class SecurityHeadersMiddleware(MiddlewareMixin):
     """
-    Rate limiting بسيط (Server-Side) ضد الهجمات الآلية.
-    - يطبق على POST بشكل افتراضي.
-    - لا يغير تصميم الموقع.
+    Headers أساسية تقلل OWASP Top 10 (XSS/Clickjacking/MIME sniffing...)
+    بدون مكتبات خارجية.
     """
 
-    # requests per window
+    def process_response(self, request, response):
+        response["X-Content-Type-Options"] = "nosniff"
+        response["X-Frame-Options"] = "DENY"
+        response["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+        # CSP خفيف (ممكن تشديده لاحقًا حسب مواردك)
+        # انت تستخدم Tailwind CDN + Google Fonts
+        csp = (
+            "default-src 'self'; "
+            "img-src 'self' data: blob: https:; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com; "
+            "font-src 'self' https://fonts.gstatic.com data:; "
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'; "
+        )
+        response["Content-Security-Policy"] = csp
+
+        return response
+
+
+class SimpleRateLimitMiddleware(MiddlewareMixin):
+    """
+    Rate limiting بسيط على مسارات حساسة لتقليل brute-force.
+    """
+
     WINDOW_SECONDS = 60
-    MAX_POSTS_PER_WINDOW = 60  # عدّلها لاحقًا حسب احتياجك
+    LIMIT = 20  # 20 طلب بالدقيقة
+
+    SENSITIVE_PREFIXES = (
+        "/accounts/login/",
+        "/accounts/register/",
+    )
 
     def process_request(self, request):
-        if request.method != "POST":
+        path = request.path or ""
+        if not any(path.startswith(p) for p in self.SENSITIVE_PREFIXES):
             return None
 
-        ip = _ip_from_request(request)
-        path = (request.path or "")[:200]
-
-        key = _cache_key("rl_post", [ip, path])
+        ip = self._get_ip(request)
+        key = f"rl:{ip}:{path}"
         now = int(time.time())
 
-        data = cache.get(key) or {"ts": now, "count": 0}
-        # reset if window expired
-        if now - int(data.get("ts", now)) > self.WINDOW_SECONDS:
-            data = {"ts": now, "count": 0}
+        bucket = cache.get(key)
+        if not bucket:
+            bucket = {"start": now, "count": 0}
 
-        data["count"] = int(data.get("count", 0)) + 1
-        cache.set(key, data, timeout=self.WINDOW_SECONDS + 5)
+        # reset window
+        if now - bucket["start"] >= self.WINDOW_SECONDS:
+            bucket = {"start": now, "count": 0}
 
-        if data["count"] > self.MAX_POSTS_PER_WINDOW:
-            return HttpResponseForbidden("تم حظر الطلب مؤقتًا بسبب عدد محاولات مرتفع.")
+        bucket["count"] += 1
+        cache.set(key, bucket, timeout=self.WINDOW_SECONDS)
+
+        if bucket["count"] > self.LIMIT:
+            logger.warning("Rate limit exceeded", extra={"ip": ip, "path": path})
+            return HttpResponseForbidden("تم حظر الطلب مؤقتًا بسبب كثرة المحاولات.")
+
         return None
 
-
-class LoginLockoutMiddleware(MiddlewareMixin):
-    """
-    قفل مؤقت بعد محاولات فاشلة (منع brute force)
-    - يتم الاعتماد عليه من داخل login_view (نفس المفهوم: السيرفر هو الحكم النهائي).
-    """
-
-    LOCK_WINDOW = 15 * 60
-    MAX_FAILS = 6
-
     @staticmethod
-    def is_locked(ip: str, username: str) -> bool:
-        key = _cache_key("login_lock", [ip, username])
-        fails = int(cache.get(key) or 0)
-        return fails >= LoginLockoutMiddleware.MAX_FAILS
-
-    @staticmethod
-    def register_fail(ip: str, username: str) -> None:
-        key = _cache_key("login_lock", [ip, username])
-        fails = int(cache.get(key) or 0) + 1
-        cache.set(key, fails, timeout=LoginLockoutMiddleware.LOCK_WINDOW)
-
-    @staticmethod
-    def clear(ip: str, username: str) -> None:
-        key = _cache_key("login_lock", [ip, username])
-        cache.delete(key)
+    def _get_ip(request):
+        xff = request.META.get("HTTP_X_FORWARDED_FOR")
+        if xff:
+            return xff.split(",")[0].strip()
+        return request.META.get("REMOTE_ADDR", "unknown")

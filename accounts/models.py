@@ -669,26 +669,31 @@ class UserAgreement(models.Model):
 
 
 # ==================================================
-# ✅ Security/Audit Models (إضافة فقط بدون كسر)
+# ✅ AUDIT + TIMELINE + SENTIMENT (إضافة شاملة للأمان والتتبع)
 # ==================================================
 
-class SecurityEvent(models.Model):
+class AuditEvent(models.Model):
     """
-    سجل أمني مركزي (Logging & Monitoring):
-    - تسجيل الدخول/الخروج
-    - محاولات فاشلة
-    - إدخالات مرفوضة
-    - Access denied
+    سجل مركزي للأحداث:
+    - تسجيل دخول/خروج
+    - إنشاء/تعديل بيانات
+    - رفع قضية/مرفقات
+    - دفع/إيصال
+    - رسائل ماستر
+    - محاولات فاشلة (Rate limit / Validation)
     """
     EVENT_TYPES = [
-        ("login_success", "تسجيل دخول ناجح"),
-        ("login_failed", "محاولة دخول فاشلة"),
-        ("logout", "تسجيل خروج"),
-        ("input_rejected", "إدخال مرفوض"),
-        ("access_denied", "منع وصول"),
-        ("case_created", "إنشاء قضية"),
-        ("payment_submitted", "رفع إيصال دفع"),
-        ("master_action", "إجراء بالماستر"),
+        ("auth_login", "دخول"),
+        ("auth_logout", "خروج"),
+        ("auth_failed", "محاولة دخول فاشلة"),
+        ("profile_update", "تحديث الملف الشخصي"),
+        ("case_create", "رفع قضية"),
+        ("agreement_accept", "موافقة اتفاقية"),
+        ("agreement_sign", "توقيع اتفاقية"),
+        ("payment_submit", "إرسال إيصال دفع"),
+        ("master_message", "رسالة ماستر"),
+        ("security_block", "حظر أمني"),
+        ("view", "تصفح صفحة"),
     ]
 
     user = models.ForeignKey(
@@ -696,52 +701,188 @@ class SecurityEvent(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="security_events",
+        related_name="audit_events",
         verbose_name="المستخدم"
     )
-    event_type = models.CharField(max_length=30, choices=EVENT_TYPES, verbose_name="نوع الحدث")
-    ip_address = models.CharField(max_length=64, blank=True, null=True, verbose_name="IP")
-    path = models.CharField(max_length=255, blank=True, null=True, verbose_name="المسار")
-    details = models.TextField(blank=True, null=True, verbose_name="تفاصيل")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="الوقت")
+
+    event_type = models.CharField(
+        max_length=40,
+        choices=EVENT_TYPES,
+        verbose_name="نوع الحدث"
+    )
+
+    path = models.CharField(
+        max_length=300,
+        blank=True,
+        null=True,
+        verbose_name="المسار"
+    )
+
+    ip = models.CharField(
+        max_length=64,
+        blank=True,
+        null=True,
+        verbose_name="IP"
+    )
+
+    user_agent = models.CharField(
+        max_length=300,
+        blank=True,
+        null=True,
+        verbose_name="User-Agent"
+    )
+
+    meta = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="بيانات إضافية"
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="وقت الحدث"
+    )
 
     class Meta:
-        verbose_name = "حدث أمني"
-        verbose_name_plural = "الأحداث الأمنية"
+        verbose_name = "سجل أمني"
+        verbose_name_plural = "السجلات الأمنية"
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.get_event_type_display()} - {self.created_at:%Y-%m-%d %H:%M}"
+        return f"{self.get_event_type_display()} - {self.created_at}"
 
 
-class AccountTrail(models.Model):
+class CaseTimelineEvent(models.Model):
     """
-    مسار معاملات المستخدم (Timeline/Trails) — يُستخدم لاحقًا لصفحة المستخدم.
+    تسلسل القضية بشكل متتابع من:
+    تسجيل -> رفع قضية -> جلسات -> حكم -> استئناف/خسارة/فوز
     """
-    ACTIONS = [
-        ("registered", "تسجيل حساب"),
-        ("profile_updated", "تحديث ملف"),
-        ("case_created", "رفع قضية"),
-        ("agreement_signed", "توقيع/موافقة اتفاقية"),
-        ("payment_submitted", "رفع إيصال دفع"),
-        ("status_changed", "تغيير حالة"),
+    STAGES = [
+        ("registered", "التسجيل"),
+        ("case_submitted", "رفع القضية"),
+        ("under_review", "مراجعة المكتب"),
+        ("sessions", "الجلسات"),
+        ("judgment", "الحكم"),
+        ("appeal", "استئناف"),
+        ("closed", "إغلاق"),
+    ]
+
+    OUTCOMES = [
+        ("win", "كسب القضية"),
+        ("lose", "خسارة"),
+        ("appeal", "استئناف"),
+        ("pending", "قيد المتابعة"),
+    ]
+
+    case = models.ForeignKey(
+        Case,
+        on_delete=models.CASCADE,
+        related_name="timeline",
+        verbose_name="القضية"
+    )
+
+    stage = models.CharField(
+        max_length=30,
+        choices=STAGES,
+        verbose_name="المرحلة"
+    )
+
+    title = models.CharField(
+        max_length=255,
+        verbose_name="عنوان الحدث"
+    )
+
+    description = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="تفاصيل"
+    )
+
+    outcome = models.CharField(
+        max_length=20,
+        choices=OUTCOMES,
+        default="pending",
+        verbose_name="النتيجة"
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="التاريخ"
+    )
+
+    class Meta:
+        verbose_name = "تسلسل قضية"
+        verbose_name_plural = "تسلسل القضايا"
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.case.case_number} - {self.get_stage_display()}"
+
+
+class SentimentSnapshot(models.Model):
+    """
+    حفظ تحليل المشاعر (للعميل + للمحامي) مرتبط بالقضية أو رسالة.
+    """
+    TARGET = [
+        ("client", "العميل"),
+        ("lawyer", "المحامي"),
+    ]
+    LABEL = [
+        ("positive", "إيجابي"),
+        ("neutral", "محايد"),
+        ("negative", "سلبي"),
     ]
 
     user = models.ForeignKey(
         User,
-        on_delete=models.CASCADE,
-        related_name="account_trails",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sentiments",
         verbose_name="المستخدم"
     )
-    action = models.CharField(max_length=30, choices=ACTIONS, verbose_name="الإجراء")
-    ref = models.CharField(max_length=100, blank=True, null=True, verbose_name="مرجع")
-    note = models.CharField(max_length=255, blank=True, null=True, verbose_name="ملاحظة")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="الوقت")
+
+    case = models.ForeignKey(
+        Case,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sentiments",
+        verbose_name="القضية"
+    )
+
+    target = models.CharField(
+        max_length=10,
+        choices=TARGET,
+        verbose_name="المستهدف"
+    )
+
+    label = models.CharField(
+        max_length=10,
+        choices=LABEL,
+        verbose_name="التصنيف"
+    )
+
+    score = models.IntegerField(
+        default=0,
+        verbose_name="الدرجة"
+    )
+
+    source_text = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="النص المحلل"
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="وقت التحليل"
+    )
 
     class Meta:
-        verbose_name = "مسار المستخدم"
-        verbose_name_plural = "مسارات المستخدم"
+        verbose_name = "تحليل مشاعر"
+        verbose_name_plural = "تحليلات المشاعر"
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.user.username} - {self.get_action_display()}"
+        return f"{self.get_target_display()} - {self.get_label_display()}"

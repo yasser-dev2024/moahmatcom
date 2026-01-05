@@ -1,86 +1,568 @@
-{% load static %}
+{% load dict_extras %}
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>لوحة الأحداث</title>
+  <meta charset="UTF-8">
+  <title>صفحة المستخدم</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+  <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800&display=swap" rel="stylesheet">
+
+  <!-- Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
 
   <script>
     tailwind.config = {
-      theme: { extend: { fontFamily: { cairo: ['Cairo','sans-serif'] } } }
+      theme: {
+        extend: {
+          colors: {
+            gold: '#D4AF37',
+            dark: '#0B0F1A',
+            card: '#121826'
+          },
+          fontFamily: {
+            cairo: ['Cairo', 'sans-serif']
+          }
+        }
+      }
     }
   </script>
+
+  <style>
+    /* ===== Confetti (JS خفيف + CSS بسيط) ===== */
+    .confetti-piece{
+      position: absolute;
+      top: -20px;
+      width: 10px;
+      height: 14px;
+      border-radius: 2px;
+      opacity: .95;
+      animation: confetti-fall 1400ms linear forwards;
+      transform: translateY(0) rotate(0deg);
+    }
+    @keyframes confetti-fall{
+      0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(320px) rotate(540deg); opacity: 0; }
+    }
+    .modal-enter{
+      animation: pop-in 180ms ease-out forwards;
+      transform: scale(.95);
+      opacity: 0;
+    }
+    @keyframes pop-in{
+      to { transform: scale(1); opacity: 1; }
+    }
+  </style>
 </head>
-<body class="bg-[#F7F9FF] text-[#0F172A] font-cairo min-h-screen">
 
-  {% include "header.html" %}
-  <div class="h-[80px]"></div>
+<body class="bg-dark text-white font-cairo min-h-screen">
 
-  <main class="max-w-6xl mx-auto px-4 pb-12">
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
-      <div>
-        <h1 class="text-2xl md:text-3xl font-extrabold">لوحة الأحداث</h1>
-        <p class="text-sm opacity-80">هنا يظهر سجل أمني ومعاملات مهمة (Login/Failed/Input Rejected/Access Denied...)</p>
-      </div>
+<!-- ================= HEADER ================= -->
+{% include "header.html" %}
 
-      <form method="get" class="w-full md:w-[420px]">
-        <div class="flex gap-2">
-          <input name="q" value="{{ q }}" placeholder="ابحث (username / event / ip / path)"
-                 class="w-full px-4 py-3 rounded-2xl border border-black/10 bg-white focus:outline-none focus:ring-2 focus:ring-black/10"/>
-          <button class="px-5 py-3 rounded-2xl bg-black text-white font-bold hover:opacity-90">بحث</button>
+<!-- spacer -->
+<div class="h-[80px]"></div>
+
+<!-- ================= DASHBOARD ================= -->
+<div class="container-desktop mx-auto px-4 py-10 space-y-10">
+
+  <!-- ================= الاتفاقية (تظهر فقط إذا الحساب معلّق وعنده اتفاقية) ================= -->
+  {% if agreement and request.user.account_status != "active" %}
+    <div class="bg-card rounded-3xl p-6 sm:p-8 border border-gold/25 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-gold">📄 اتفاقية مطلوبة</h2>
+          <p class="text-sm text-gray-300 mt-1">
+            حسابك معلّق مؤقتًا لحين الموافقة/التوقيع على الاتفاقية، وبعدها يظهر الدفع إذا مطلوب.
+          </p>
         </div>
-      </form>
-    </div>
 
-    <div class="bg-white border border-black/10 rounded-3xl overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="min-w-full text-sm">
-          <thead class="bg-black text-white">
-            <tr>
-              <th class="p-3 text-right">الوقت</th>
-              <th class="p-3 text-right">المستخدم</th>
-              <th class="p-3 text-right">الحدث</th>
-              <th class="p-3 text-right">IP</th>
-              <th class="p-3 text-right">المسار</th>
-              <th class="p-3 text-right">تفاصيل</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for e in page_obj %}
-            <tr class="border-b border-black/5">
-              <td class="p-3 whitespace-nowrap">{{ e.created_at|date:"Y-m-d H:i" }}</td>
-              <td class="p-3">{{ e.user.username|default:"—" }}</td>
-              <td class="p-3">{{ e.get_event_type_display }}</td>
-              <td class="p-3">{{ e.ip_address|default:"—" }}</td>
-              <td class="p-3 break-all">{{ e.path|default:"—" }}</td>
-              <td class="p-3 break-words">{{ e.details|default:"—" }}</td>
-            </tr>
-            {% empty %}
-            <tr><td class="p-6 text-center opacity-70" colspan="6">لا توجد أحداث بعد.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        <div class="flex flex-col sm:flex-row gap-3">
+          <a href="{% url 'agreement_view' agreement.token %}"
+             class="bg-gold text-black px-6 py-3 rounded-xl font-bold hover:opacity-90 transition text-center">
+            فتح الاتفاقية
+          </a>
+
+          {% if agreement.status == "payment_pending" %}
+            <a href="{% url 'payment_page' agreement.token %}"
+               class="bg-green-600 text-white px-6 py-3 rounded-xl font-bold hover:opacity-90 transition text-center">
+              💳 الدفع
+            </a>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="text-xs text-gray-400">
+        آخر تحديث: {{ agreement.created_at|date:"Y-m-d H:i" }}
       </div>
     </div>
+  {% endif %}
 
-    <div class="flex items-center justify-center gap-2 mt-8">
-      {% if page_obj.has_previous %}
-        <a class="px-4 py-2 rounded-xl bg-white border border-black/10"
-           href="?q={{ q }}&page={{ page_obj.previous_page_number }}">السابق</a>
-      {% endif %}
-      <div class="text-sm opacity-80">صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}</div>
-      {% if page_obj.has_next %}
-        <a class="px-4 py-2 rounded-xl bg-white border border-black/10"
-           href="?q={{ q }}&page={{ page_obj.next_page_number }}">التالي</a>
+  <!-- ================= بانتظار موافقة المكتب (بعد إرسال الإيصال والصورة) ================= -->
+  {% if agreement and agreement.status == "under_review" %}
+    <div class="bg-card rounded-3xl p-6 sm:p-8 border border-yellow-400/40 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-extrabold text-yellow-400">⏳ بانتظار موافقة المكتب</h2>
+          <p class="text-sm text-gray-300 mt-1">
+            تم استلام رقم الإيصال وصورته بنجاح، وسيتم مراجعته من قبل المكتب أو المحامي المختص.
+          </p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3">
+          <a href="{% url 'payment_pending_review' agreement.token %}"
+             class="bg-yellow-500 hover:bg-yellow-600 text-black px-6 py-3 rounded-xl font-bold transition text-center">
+            عرض حالة الإيصال
+          </a>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="bg-dark rounded-xl p-4 border border-white/10">
+          <p class="text-xs text-gray-400 mb-1">رقم الإيصال</p>
+          <p class="text-lg font-bold">{{ agreement.client_payment_receipt }}</p>
+        </div>
+
+        <div class="bg-dark rounded-xl p-4 border border-white/10">
+          <p class="text-xs text-gray-400 mb-1">المبلغ</p>
+          <p class="text-lg font-bold">SAR {{ agreement.payment_amount }}</p>
+        </div>
+      </div>
+
+      {% if agreement.client_receipt_image %}
+        <div class="bg-dark rounded-xl p-4 border border-white/10">
+          <p class="text-xs text-gray-400 mb-2">صورة الإيصال</p>
+          <img src="{{ agreement.client_receipt_image.url }}" alt="صورة الإيصال"
+               class="w-full max-h-96 object-contain rounded-xl border border-white/10">
+        </div>
       {% endif %}
     </div>
-  </main>
+  {% endif %}
 
-  {% include "partials/sign_language_fixed.html" %}
+  <!-- ===== العنوان ===== -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <h1 class="text-2xl font-bold">
+      مرحبًا <span class="text-gold">{{ request.user.username }}</span>
+    </h1>
+
+    <a href="{% url 'profile_update' %}"
+       class="bg-gold text-black px-6 py-3 rounded-xl font-bold hover:opacity-90 transition">
+      ✏️ تعديل البيانات
+    </a>
+  </div>
+
+  <!-- ===== حالة البيانات ===== -->
+  <div class="bg-card rounded-2xl p-6 border border-white/10 space-y-3">
+    {% if profile.full_name and profile.national_id %}
+      <p class="text-green-400 font-bold">✅ بياناتك مكتملة</p>
+    {% else %}
+      <p class="text-yellow-400 font-bold">⚠️ يرجى استكمال بياناتك</p>
+    {% endif %}
+  </div>
+
+  <!-- ===== البيانات الشخصية ===== -->
+  <div class="bg-card rounded-3xl p-6 sm:p-8 space-y-6 border border-white/10">
+
+    <h2 class="text-xl font-bold text-gold">👤 بياناتك الشخصية</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm sm:text-base">
+
+      <div>
+        <p class="text-gray-400">الاسم الكامل:</p>
+        <p class="font-bold">
+          {{ profile.full_name|default:"— لم يتم الإدخال —" }}
+        </p>
+      </div>
+
+      <div>
+        <p class="text-gray-400">السجل المدني:</p>
+        <p class="font-bold">
+          {{ profile.national_id|default:"— لم يتم الإدخال —" }}
+        </p>
+      </div>
+
+      <div>
+        <p class="text-gray-400">رقم الجوال:</p>
+        <p class="font-bold">
+          {{ request.user.phone_number|default:"— لم يتم الإدخال —" }}
+        </p>
+      </div>
+
+      <div>
+        <p class="text-gray-400">العنوان الوطني:</p>
+        <p class="font-bold">
+          {{ profile.address|default:"— لم يتم الإدخال —" }}
+        </p>
+      </div>
+
+    </div>
+
+    <!-- صورة الهوية -->
+    <div class="pt-4">
+      <p class="text-gray-400 mb-2">صورة البطاقة:</p>
+
+      {% if profile.id_card_image %}
+        <img
+          src="{{ profile.id_card_image.url }}"
+          alt="صورة الهوية"
+          class="w-40 rounded-xl border border-gold/40"
+        >
+      {% else %}
+        <p class="text-red-400 text-sm">لم يتم رفع صورة الهوية</p>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- ===== المستندات ===== -->
+  <div class="bg-card rounded-3xl p-6 sm:p-8 space-y-6 border border-white/10">
+    <h2 class="text-xl font-bold text-gold">📎 مستنداتك المرفوعة</h2>
+
+    {% if documents %}
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {% for d in documents %}
+          <a href="{{ d.file.url }}" target="_blank"
+             class="bg-dark rounded-xl p-4 border border-white/10 hover:border-gold/40 transition block">
+            <div class="font-bold">{{ d.title }}</div>
+            <div class="text-xs text-gray-400 mt-2">
+              تاريخ الرفع: {{ d.uploaded_at|date:"Y-m-d H:i" }}
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-gray-400">لا توجد مستندات مرفوعة حتى الآن.</p>
+    {% endif %}
+  </div>
+
+  <!-- ===== القضايا ===== -->
+  <div class="bg-card rounded-3xl p-6 sm:p-8 space-y-6 border border-white/10">
+
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <h2 class="text-xl font-bold text-gold flex items-center gap-2">
+        ⚖️ قضاياي
+      </h2>
+
+      <a href="{% url 'case_create' %}"
+         class="bg-gold text-black px-6 py-3 rounded-xl font-bold hover:opacity-90 transition flex items-center gap-2">
+        ➕ رفع قضية جديدة
+      </a>
+    </div>
+
+    {% if cases %}
+      <div class="space-y-6">
+
+        {% for case in cases %}
+        <div class="bg-dark rounded-xl p-5 border border-white/10 space-y-4">
+
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p class="font-bold text-lg">{{ case.title }}</p>
+              <p class="text-sm text-gray-400 mt-1">
+                رقم القضية: {{ case.case_number }} |
+                التاريخ: {{ case.created_at|date:"Y-m-d" }}
+              </p>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-2">
+              <a href="{% url 'case_timeline_view' case.id %}"
+                 class="bg-gold text-black px-5 py-2 rounded-xl font-bold hover:opacity-90 transition text-center">
+                🧭 عرض التسلسل
+              </a>
+            </div>
+          </div>
+
+          <!-- ===== تقدم القضية (Stepper) ===== -->
+          {% if case_progress %}
+            {% with prog=case_progress|get_item:case.id %}
+              <div class="bg-card rounded-xl p-4 border border-white/10">
+
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <p class="text-gold font-bold">📌 تقدم القضية</p>
+
+                  <div class="flex items-center gap-2">
+                    {% if prog.judgment_outcome == "win" %}
+                      <button type="button"
+                              class="text-xs px-3 py-1 rounded-full bg-green-500/15 border border-green-400/30 text-green-300 font-bold hover:opacity-90"
+                              onclick="openJudgmentModal('win', '{{ case.case_number }}')">
+                        🏆 الحكم: مبروك! كسبت القضية
+                      </button>
+                    {% elif prog.judgment_outcome == "lose" %}
+                      <button type="button"
+                              class="text-xs px-3 py-1 rounded-full bg-red-500/15 border border-red-400/30 text-red-300 font-bold hover:opacity-90"
+                              onclick="openJudgmentModal('lose', '{{ case.case_number }}')">
+                        ⚠️ الحكم: خسارة
+                      </button>
+                    {% elif prog.judgment_outcome == "appeal" %}
+                      <button type="button"
+                              class="text-xs px-3 py-1 rounded-full bg-yellow-500/15 border border-yellow-400/30 text-yellow-200 font-bold hover:opacity-90"
+                              onclick="openJudgmentModal('appeal', '{{ case.case_number }}')">
+                        🟨 الحكم: استئناف
+                      </button>
+                    {% else %}
+                      <span class="text-xs text-gray-400">آخر مرحلة: {{ prog.latest_stage }}</span>
+                    {% endif %}
+                  </div>
+                </div>
+
+                <!-- steps -->
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-5 gap-3 text-xs">
+                  <!-- التسجيل -->
+                  <div class="rounded-xl p-3 border border-white/10 {% if 'registered' in prog.stages %}bg-green-500/10 border-green-400/20{% else %}bg-dark{% endif %}">
+                    <div class="font-bold">1) التسجيل</div>
+                    <div class="text-gray-400 mt-1">تم إنشاء الحساب</div>
+                  </div>
+
+                  <!-- رفع القضية -->
+                  <div class="rounded-xl p-3 border border-white/10 {% if 'case_submitted' in prog.stages %}bg-green-500/10 border-green-400/20{% else %}bg-dark{% endif %}">
+                    <div class="font-bold">2) رفع القضية</div>
+                    <div class="text-gray-400 mt-1">إرسال تفاصيل القضية</div>
+                  </div>
+
+                  <!-- مراجعة المكتب -->
+                  <div class="rounded-xl p-3 border border-white/10 {% if 'under_review' in prog.stages %}bg-green-500/10 border-green-400/20{% else %}bg-dark{% endif %}">
+                    <div class="font-bold">3) مراجعة المكتب</div>
+                    <div class="text-gray-400 mt-1">تدقيق البيانات</div>
+                  </div>
+
+                  <!-- الجلسات -->
+                  <div class="rounded-xl p-3 border border-white/10 {% if 'sessions' in prog.stages %}bg-green-500/10 border-green-400/20{% else %}bg-dark{% endif %}">
+                    <div class="font-bold">4) الجلسات</div>
+                    <div class="text-gray-400 mt-1">متابعة الجلسات</div>
+                  </div>
+
+                  <!-- الحكم -->
+                  <div class="rounded-xl p-3 border border-white/10 {% if 'judgment' in prog.stages %}bg-green-500/10 border-green-400/20{% else %}bg-dark{% endif %}">
+                    <div class="font-bold">5) الحكم</div>
+                    <div class="text-gray-400 mt-1">نتيجة القضية</div>
+                  </div>
+                </div>
+
+                <!-- تحليل مشاعر العميل على القضية -->
+                {% if case_sentiments and case_sentiments|get_item:case.id %}
+                  {% with s=case_sentiments|get_item:case.id %}
+                    <div class="mt-4 rounded-xl border border-white/10 p-3 bg-dark">
+                      <div class="flex items-center justify-between">
+                        <div class="text-gold font-bold">🧠 تحليل مشاعرك (آخر قراءة)</div>
+                        <div class="text-xs text-gray-400">{{ s.created_at|date:"Y-m-d H:i" }}</div>
+                      </div>
+                      <div class="text-sm text-gray-200 mt-2">
+                        التصنيف: <span class="font-bold text-gold">{{ s.label }}</span>
+                        — الدرجة: <span class="font-bold">{{ s.score }}</span>
+                      </div>
+                    </div>
+                  {% endwith %}
+                {% endif %}
+              </div>
+            {% endwith %}
+          {% endif %}
+
+          <!-- 📝 ملاحظات المحامي -->
+          {% if case.lawyer_notes %}
+            <div class="bg-card rounded-lg p-4 border border-gold/30">
+              <p class="text-gold font-bold mb-1">📝 ملاحظات المحامي</p>
+              <p class="text-sm leading-relaxed text-gray-200">
+                {{ case.lawyer_notes }}
+              </p>
+            </div>
+          {% endif %}
+
+          <!-- 💬 الردود -->
+          <div class="space-y-3">
+            <p class="text-gold font-bold">💬 الردود والتواصل</p>
+
+            {% for reply in case.replies.all %}
+              {% if reply.is_visible_for_client %}
+              <div class="bg-card rounded-lg p-4 border border-white/10">
+                <p class="text-sm text-gray-200 leading-relaxed">
+                  {{ reply.message }}
+                </p>
+                <p class="text-xs text-gray-400 mt-2">
+                  {{ reply.created_at|date:"Y-m-d H:i" }}
+                </p>
+              </div>
+              {% endif %}
+            {% empty %}
+              <p class="text-sm text-gray-500">
+                لا توجد ردود حتى الآن.
+              </p>
+            {% endfor %}
+          </div>
+
+        </div>
+        {% endfor %}
+
+      </div>
+    {% else %}
+      <p class="text-gray-400">
+        لا توجد قضايا مضافة حتى الآن.
+      </p>
+    {% endif %}
+
+  </div>
+
+  <!-- ===== سجل النشاط والمسارات ===== -->
+  <div class="bg-card rounded-3xl p-6 sm:p-8 space-y-6 border border-white/10">
+    <div class="flex items-center justify-between gap-4">
+      <h2 class="text-xl font-bold text-gold">🧾 سجل نشاطك ومساراتك</h2>
+      <div class="text-xs text-gray-400">آخر 60 حدث</div>
+    </div>
+
+    {% if audit_events %}
+      <div class="space-y-3">
+        {% for e in audit_events %}
+          <div class="bg-dark rounded-xl p-4 border border-white/10">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div class="font-bold">
+                {{ e.get_event_type_display }}
+                <span class="text-xs text-gray-400 font-normal">— {{ e.created_at|date:"Y-m-d H:i" }}</span>
+              </div>
+              <div class="text-xs text-gray-400">
+                IP: {{ e.ip|default:"—" }}
+              </div>
+            </div>
+
+            {% if e.path %}
+              <div class="text-xs text-gray-400 mt-2 break-words">
+                المسار: {{ e.path }}
+              </div>
+            {% endif %}
+
+            {% if e.meta %}
+              <div class="text-xs text-gray-500 mt-2 break-words">
+                تفاصيل: {{ e.meta }}
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-gray-400">لا يوجد سجل نشاط حتى الآن.</p>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- ================= FOOTER ================= -->
+{% include "footer.html" %}
+
+<!-- ================= Judgment Modal + Confetti ================= -->
+<div id="judgmentModal" class="fixed inset-0 z-[9999] hidden items-center justify-center bg-black/70 px-4">
+  <div class="relative w-full max-w-lg bg-card rounded-3xl p-6 sm:p-8 border border-gold/25 modal-enter overflow-hidden">
+
+    <!-- Confetti container -->
+    <div id="confettiContainer" class="pointer-events-none absolute inset-0"></div>
+
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <h3 id="judgmentTitle" class="text-xl sm:text-2xl font-extrabold text-gold"></h3>
+        <p id="judgmentSub" class="text-sm text-gray-300 mt-1"></p>
+      </div>
+      <button type="button" onclick="closeJudgmentModal()"
+              class="text-gold text-2xl font-extrabold leading-none hover:opacity-80">✕</button>
+    </div>
+
+    <div id="judgmentBody" class="mt-5 rounded-2xl bg-dark border border-white/10 p-4 text-sm leading-7 text-gray-200"></div>
+
+    <div class="mt-6 flex flex-col sm:flex-row gap-2">
+      <button type="button" onclick="closeJudgmentModal()"
+              class="w-full sm:w-auto bg-gold text-black px-6 py-3 rounded-xl font-bold hover:opacity-90 transition">
+        تمام
+      </button>
+      <a href="{% url 'user_dashboard' %}"
+         class="w-full sm:w-auto bg-white/10 border border-white/10 px-6 py-3 rounded-xl font-bold hover:bg-white/15 transition text-center">
+        رجوع للوحة
+      </a>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const judgmentModal = document.getElementById('judgmentModal');
+  const judgmentTitle = document.getElementById('judgmentTitle');
+  const judgmentSub   = document.getElementById('judgmentSub');
+  const judgmentBody  = document.getElementById('judgmentBody');
+  const confettiContainer = document.getElementById('confettiContainer');
+
+  function randomInt(min, max){
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function spawnConfetti(){
+    // ألوان بسيطة بدون مكتبات
+    const colors = ['#D4AF37', '#22c55e', '#60a5fa', '#f97316', '#e879f9', '#facc15'];
+    const count = 28;
+
+    confettiContainer.innerHTML = '';
+
+    const box = confettiContainer.getBoundingClientRect();
+    for(let i=0; i<count; i++){
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.left = randomInt(0, Math.max(0, Math.floor(box.width - 10))) + 'px';
+      piece.style.background = colors[randomInt(0, colors.length - 1)];
+      piece.style.width = randomInt(6, 12) + 'px';
+      piece.style.height = randomInt(10, 18) + 'px';
+      piece.style.animationDuration = randomInt(900, 1500) + 'ms';
+      piece.style.transform = `translateY(0) rotate(${randomInt(0, 180)}deg)`;
+      confettiContainer.appendChild(piece);
+    }
+
+    // تنظيف بعد انتهاء الانيميشن
+    setTimeout(() => { confettiContainer.innerHTML = ''; }, 1700);
+  }
+
+  function openJudgmentModal(type, caseNumber){
+    judgmentModal.classList.remove('hidden');
+    judgmentModal.classList.add('flex');
+
+    if(type === 'win'){
+      judgmentTitle.textContent = 'مبروك! كسبت القضية 🎉';
+      judgmentSub.textContent   = `رقم القضية: ${caseNumber}`;
+      judgmentBody.innerHTML    = `
+        <div class="font-bold text-green-300 mb-2">نتيجة الحكم: فوز</div>
+        <div>تم تسجيل الحكم لصالحك. إذا احتجت أي توضيح إضافي، تقدر تراسل المكتب من داخل النظام.</div>
+      `;
+      spawnConfetti();
+    } else if(type === 'appeal'){
+      judgmentTitle.textContent = 'القضية دخلت مرحلة الاستئناف';
+      judgmentSub.textContent   = `رقم القضية: ${caseNumber}`;
+      judgmentBody.innerHTML    = `
+        <div class="font-bold text-yellow-200 mb-2">نتيجة الحكم: استئناف</div>
+        <div>تم تسجيل الاستئناف. سيتم تحديثك بأي جلسات/مستجدات ضمن التسلسل.</div>
+      `;
+    } else {
+      judgmentTitle.textContent = 'تم تسجيل حكم على القضية';
+      judgmentSub.textContent   = `رقم القضية: ${caseNumber}`;
+      judgmentBody.innerHTML    = `
+        <div class="font-bold text-red-300 mb-2">نتيجة الحكم: خسارة</div>
+        <div>إذا رغبت بالاستئناف أو لديك مستندات داعمة إضافية، ارفعها وسيتم تحديث التسلسل.</div>
+      `;
+    }
+  }
+
+  function closeJudgmentModal(){
+    judgmentModal.classList.add('hidden');
+    judgmentModal.classList.remove('flex');
+    confettiContainer.innerHTML = '';
+  }
+
+  // إغلاق بالضغط خارج المودال
+  judgmentModal.addEventListener('click', function(e){
+    if(e.target === judgmentModal){
+      closeJudgmentModal();
+    }
+  });
+
+  // إغلاق بزر ESC
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && !judgmentModal.classList.contains('hidden')){
+      closeJudgmentModal();
+    }
+  });
+</script>
 
 </body>
 </html>

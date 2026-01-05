@@ -9,12 +9,7 @@ Clean, Secure & Ready for Expansion
 from pathlib import Path
 import os
 
-
-# --------------------------------------------------
-# BASE
-# --------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 
 # --------------------------------------------------
 # SECURITY
@@ -31,12 +26,10 @@ ALLOWED_HOSTS = [
     "localhost",
 ]
 
-
 # --------------------------------------------------
 # APPLICATIONS
 # --------------------------------------------------
 INSTALLED_APPS = [
-    # Django Core
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -44,18 +37,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    # Project Apps
     'accounts',
     'legal',
     'operations',
 ]
 
-
-# --------------------------------------------------
-# AUTH USER MODEL (مهم جدًا للأدمن)
-# --------------------------------------------------
 AUTH_USER_MODEL = 'accounts.User'
-
 
 # --------------------------------------------------
 # MIDDLEWARE
@@ -74,16 +61,12 @@ MIDDLEWARE = [
 
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 
-    # ✅ Security Add-ons (لا تغيّر التصميم)
-    'accounts.middleware.RateLimitMiddleware',
+    # ✅ Security hardening
+    'accounts.middleware.SimpleRateLimitMiddleware',
+    'accounts.middleware.SecurityHeadersMiddleware',
 ]
 
-
-# --------------------------------------------------
-# URLS
-# --------------------------------------------------
 ROOT_URLCONF = 'mashromoahmecom.urls'
-
 
 # --------------------------------------------------
 # TEMPLATES
@@ -106,12 +89,7 @@ TEMPLATES = [
     },
 ]
 
-
-# --------------------------------------------------
-# WSGI
-# --------------------------------------------------
 WSGI_APPLICATION = 'mashromoahmecom.wsgi.application'
-
 
 # --------------------------------------------------
 # DATABASE
@@ -123,26 +101,15 @@ DATABASES = {
     }
 }
 
-
 # --------------------------------------------------
 # PASSWORD VALIDATION
 # --------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-        'OPTIONS': {'min_length': 8}
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator', 'OPTIONS': {'min_length': 8}},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
-
 
 # --------------------------------------------------
 # INTERNATIONALIZATION
@@ -159,7 +126,6 @@ USE_I18N = True
 USE_L10N = True
 USE_TZ = True
 
-
 # --------------------------------------------------
 # STATIC FILES
 # --------------------------------------------------
@@ -169,70 +135,59 @@ STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
 
-
 # --------------------------------------------------
 # MEDIA FILES
 # --------------------------------------------------
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-
 # --------------------------------------------------
 # DEFAULT PRIMARY KEY
 # --------------------------------------------------
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-
-# ==================================================
-# ✅ Security Hardening (Production-Ready) — بدون كسر التطوير
-# ==================================================
-
-# Session Cookie protection
+# --------------------------------------------------
+# ✅ SESSION & TOKEN HARDENING
+# --------------------------------------------------
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
-
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 
-# Do NOT send session token in URL (Django doesn't by default)
-# SESSION_ENGINE stays default; can move to cache/db later.
+# لو فعلت HTTPS في الإنتاج، فعّلها:
+# SESSION_COOKIE_SECURE = True
+# CSRF_COOKIE_SECURE = True
+# SECURE_HSTS_SECONDS = 31536000
+# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+# SECURE_HSTS_PRELOAD = True
+# SECURE_SSL_REDIRECT = True
 
-# HTTPS only in production
-if not DEBUG:
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_HSTS_SECONDS = 31536000
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
+SESSION_COOKIE_AGE = 60 * 60 * 6  # 6 ساعات
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
+# --------------------------------------------------
+# ✅ CACHE (rate limiting)
+# --------------------------------------------------
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "security-cache",
+    }
+}
 
-# ==================================================
-# ✅ Logging & Monitoring
-# ==================================================
+# --------------------------------------------------
+# ✅ LOGGING (Security + Monitoring)
+# --------------------------------------------------
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "verbose": {
-            "format": "[{asctime}] {levelname} {name} {message}",
-            "style": "{",
-        }
+        "simple": {"format": "[{asctime}] {levelname} {name}: {message}", "style": "{"},
     },
     "handlers": {
-        "file_security": {
-            "level": "INFO",
-            "class": "logging.FileHandler",
-            "filename": os.path.join(BASE_DIR, "security.log"),
-            "formatter": "verbose",
-        },
-        "console": {"class": "logging.StreamHandler", "formatter": "verbose"},
+        "console": {"class": "logging.StreamHandler", "formatter": "simple"},
     },
     "loggers": {
-        "accounts": {
-            "handlers": ["file_security", "console"],
-            "level": "INFO",
-            "propagate": False,
-        }
+        "security": {"handlers": ["console"], "level": "WARNING", "propagate": False},
     },
 }

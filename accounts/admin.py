@@ -11,7 +11,10 @@ from .models import (
     Case,
     CaseReply,
     AgreementTemplate,
-    UserAgreement
+    UserAgreement,
+    AuditEvent,
+    CaseTimelineEvent,
+    SentimentSnapshot,
 )
 
 # --------------------------------------------------
@@ -145,7 +148,7 @@ class UserAgreementAdmin(admin.ModelAdmin):
     )
 
     actions = [
-        send_agreement,     # ← زر إرسال الاتفاقية
+        send_agreement,
         approve_payment,
         reject_payment,
     ]
@@ -196,8 +199,32 @@ class UserAgreementAdmin(admin.ModelAdmin):
 
 
 # --------------------------------------------------
-# Register other models
+# Extra Registers
 # --------------------------------------------------
+@admin.register(AuditEvent)
+class AuditEventAdmin(admin.ModelAdmin):
+    list_display = ("event_type", "user", "path", "ip", "created_at")
+    list_filter = ("event_type",)
+    search_fields = ("user__username", "path", "ip")
+    ordering = ("-created_at",)
+
+
+@admin.register(CaseTimelineEvent)
+class CaseTimelineEventAdmin(admin.ModelAdmin):
+    list_display = ("case", "stage", "outcome", "created_at")
+    list_filter = ("stage", "outcome")
+    search_fields = ("case__case_number", "title")
+    ordering = ("created_at",)
+
+
+@admin.register(SentimentSnapshot)
+class SentimentSnapshotAdmin(admin.ModelAdmin):
+    list_display = ("target", "label", "score", "user", "case", "created_at")
+    list_filter = ("target", "label")
+    search_fields = ("user__username", "case__case_number")
+    ordering = ("-created_at",)
+
+
 admin.site.register(UserProfile)
 admin.site.register(UserDocument)
 admin.site.register(Case)

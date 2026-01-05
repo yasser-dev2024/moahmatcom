@@ -10,8 +10,6 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.http import HttpResponseForbidden
 from django.views.decorators.csrf import csrf_protect
-from django.conf import settings
-from django.core.mail import mail_admins
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.contrib.admin.views.decorators import staff_member_required
@@ -30,73 +28,58 @@ from .models import (
     ClientMasterFolder,
     ClientMasterMessage,
     ClientMasterDocument,
-    SecurityEvent,
-    AccountTrail,
+    AuditEvent,
+    CaseTimelineEvent,
+    SentimentSnapshot,
 )
 
-# ✅ طبقة الأمان (Whitelisting Server-Side)
 from .security import (
     validate_username,
     validate_phone,
     validate_email_safe,
     validate_safe_text,
+    validate_safe_multiline,
     validate_receipt_code,
     validate_choice,
 )
 
-from .middleware import LoginLockoutMiddleware
-
+from .sentiment import analyze_sentiment
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+security_logger = logging.getLogger("security")
 
 
 # --------------------------------------------------
 # Helpers
 # --------------------------------------------------
-def _ip(request) -> str:
-    return (request.META.get("REMOTE_ADDR", "") or "").strip()[:64]
+def _get_ip(request):
+    xff = request.META.get("HTTP_X_FORWARDED_FOR")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR", "unknown")
 
 
-def _log_event(user, event_type: str, request=None, details: str = ""):
+def log_event(request, event_type: str, meta: str = ""):
     try:
-        SecurityEvent.objects.create(
-            user=user if (user and getattr(user, "is_authenticated", False)) else None,
+        AuditEvent.objects.create(
+            user=request.user if getattr(request, "user", None) and request.user.is_authenticated else None,
             event_type=event_type,
-            ip_address=_ip(request) if request else None,
-            path=(request.path[:255] if request and request.path else None),
-            details=(details[:2000] if details else None),
+            path=request.path[:300] if request.path else "",
+            ip=_get_ip(request),
+            user_agent=(request.META.get("HTTP_USER_AGENT") or "")[:300],
+            meta=(meta or "")[:5000],
         )
     except Exception:
-        # لا تكسر الموقع بسبب فشل logging
         pass
 
 
-def _trail(user, action: str, ref: str = "", note: str = ""):
-    try:
-        if user and getattr(user, "is_authenticated", False):
-            AccountTrail.objects.create(
-                user=user,
-                action=action,
-                ref=(ref[:100] if ref else None),
-                note=(note[:255] if note else None),
-            )
-    except Exception:
-        pass
-
-
-# --------------------------------------------------
-# Helper: Latest Agreement
-# --------------------------------------------------
 def _get_latest_agreement(user):
     if not user.is_authenticated:
         return None
     return user.agreements.order_by("-created_at").first()
 
 
-# --------------------------------------------------
-# Helper: Redirect if suspended
-# --------------------------------------------------
 def _redirect_if_suspended(request, allow_dashboard=False):
     """
     إذا المستخدم معلّق:
@@ -112,6 +95,56 @@ def _redirect_if_suspended(request, allow_dashboard=False):
                 return redirect("agreement_view", token=latest.token)
             return redirect("account_suspended")
     return None
+
+
+def _ensure_master_folder_for_user(user: User):
+    if not user:
+        return
+    if not getattr(user, "master_folder", None):
+        ClientMasterFolder.objects.get_or_create(user=user)
+
+
+def _case_timeline_seed(case: Case):
+    if not case:
+        return
+    if case.timeline.exists():
+        return
+    CaseTimelineEvent.objects.create(
+        case=case,
+        stage="case_submitted",
+        title="تم رفع القضية",
+        description="تم استلام بيانات القضية من العميل.",
+        outcome="pending",
+    )
+    CaseTimelineEvent.objects.create(
+        case=case,
+        stage="under_review",
+        title="قيد مراجعة المكتب",
+        description="المكتب يراجع تفاصيل القضية والمرفقات.",
+        outcome="pending",
+    )
+    CaseTimelineEvent.objects.create(
+        case=case,
+        stage="sessions",
+        title="مرحلة الجلسات",
+        description="سيتم تحديث تفاصيل الجلسات هنا.",
+        outcome="pending",
+    )
+
+
+def _save_sentiment(user: User, case: Case, target: str, text: str):
+    try:
+        res = analyze_sentiment(text or "")
+        SentimentSnapshot.objects.create(
+            user=user,
+            case=case,
+            target=target,
+            label=res.label,
+            score=res.score,
+            source_text=(text or "")[:2000],
+        )
+    except Exception:
+        pass
 
 
 # --------------------------------------------------
@@ -131,26 +164,26 @@ def register_view(request):
                 raise ValidationError("يرجى تعبئة جميع الحقول المطلوبة")
 
             if password1 != password2:
-                raise ValidationError("بيانات الدخول غير صحيحة")  # رسالة عامة (لا تفصح)
+                raise ValidationError("كلمتا المرور غير متطابقتين")
 
             if len(password1) < 8:
                 raise ValidationError("كلمة المرور يجب ألا تقل عن 8 أحرف")
 
             if User.objects.filter(username=username).exists():
-                raise ValidationError("لا يمكن إتمام العملية. جرّب بيانات أخرى.")
+                raise ValidationError("اسم المستخدم مستخدم مسبقًا")
 
             if email:
                 validate_email(email)
                 if User.objects.filter(email=email).exists():
-                    raise ValidationError("لا يمكن إتمام العملية. جرّب بيانات أخرى.")
+                    raise ValidationError("البريد الإلكتروني مستخدم مسبقًا")
 
             if phone_number:
                 if User.objects.filter(phone_number=phone_number).exists():
-                    raise ValidationError("لا يمكن إتمام العملية. جرّب بيانات أخرى.")
+                    raise ValidationError("رقم الجوال مستخدم مسبقًا")
 
         except ValidationError as e:
-            _log_event(None, "input_rejected", request, details=f"register_rejected: {str(e)}")
             messages.error(request, str(e))
+            log_event(request, "security_block", meta=f"register_validation:{str(e)}")
             return redirect("register")
 
         user = User.objects.create_user(
@@ -168,8 +201,8 @@ def register_view(request):
         except Exception:
             pass
 
-        _log_event(user, "login_success", request, details="auto_login_after_register")
-        _trail(user, "registered", ref=user.username, note="تم التسجيل")
+        _ensure_master_folder_for_user(user)
+        log_event(request, "auth_login", meta="register_login")
 
         return redirect("index")
 
@@ -181,23 +214,16 @@ def register_view(request):
 # --------------------------------------------------
 def login_view(request):
     if request.method == "POST":
-        ip = _ip(request)
         try:
             username = validate_username(request.POST.get("username", ""))
-            password = request.POST.get("password") or ""
-
-            # ✅ Lockout
-            if LoginLockoutMiddleware.is_locked(ip, username):
-                _log_event(None, "login_failed", request, details=f"locked: {username}")
-                messages.error(request, "تم إيقاف محاولات الدخول مؤقتًا. حاول لاحقًا.")
-                return redirect("login")
+            password = request.POST.get("password")
 
             if not username or not password:
-                raise ValidationError("بيانات الدخول غير صحيحة")  # رسالة عامة
+                raise ValidationError("يرجى إدخال البيانات المطلوبة")
 
-        except ValidationError as e:
-            _log_event(None, "login_failed", request, details=f"validation_failed: {str(e)}")
+        except ValidationError:
             messages.error(request, "بيانات الدخول غير صحيحة")
+            log_event(request, "auth_failed", meta="login_validation_failed")
             return redirect("login")
 
         user = authenticate(request, username=username, password=password)
@@ -208,20 +234,16 @@ def login_view(request):
             except Exception:
                 pass
 
-            # ✅ مسح lockout بعد نجاح الدخول
-            LoginLockoutMiddleware.clear(ip, username)
-
-            _log_event(user, "login_success", request, details="login_ok")
+            _ensure_master_folder_for_user(user)
+            log_event(request, "auth_login", meta="login_success")
 
             if user.account_status in ("pending_agreement", "payment_pending"):
                 return redirect("user_dashboard")
 
             return redirect("index")
 
-        # ❌ فشل: سجّل وحسّب على lockout
-        LoginLockoutMiddleware.register_fail(ip, username)
-        _log_event(None, "login_failed", request, details=f"auth_failed: {username}")
         messages.error(request, "بيانات الدخول غير صحيحة")
+        log_event(request, "auth_failed", meta="login_auth_failed")
         return redirect("login")
 
     return render(request, "accounts-templates/login.html")
@@ -232,13 +254,12 @@ def login_view(request):
 # --------------------------------------------------
 @require_http_methods(["GET", "POST"])
 def logout_view(request):
-    user = request.user if request.user.is_authenticated else None
+    log_event(request, "auth_logout", meta="logout")
     try:
         logout(request)
         request.session.flush()
     except Exception:
         pass
-    _log_event(user, "logout", request, details="logout")
     return redirect("/")
 
 
@@ -248,11 +269,12 @@ def logout_view(request):
 @login_required
 def account_suspended(request):
     latest = _get_latest_agreement(request.user)
+    log_event(request, "view", meta="account_suspended")
     return render(request, "accounts/account_suspended.html", {"agreement": latest})
 
 
 # --------------------------------------------------
-# Dashboard
+# Dashboard (✅ تم توسيعه لعرض كل معاملات المستخدم ومساراته + التقدم + المشاعر)
 # --------------------------------------------------
 @login_required
 def user_dashboard(request):
@@ -263,8 +285,50 @@ def user_dashboard(request):
     profile = getattr(request.user, "profile", None)
     cases = request.user.account_cases.all().order_by("-created_at")
 
-    # ✅ Trails (مسارات المعاملات)
-    trails = request.user.account_trails.all().order_by("-created_at")[:50]
+    # مستندات المستخدم
+    documents = request.user.documents.all().order_by("-uploaded_at")
+
+    # سجل المستخدم (آخر 60)
+    audit_events = AuditEvent.objects.filter(user=request.user).order_by("-created_at")[:60]
+
+    # تجهيز تقدم كل قضية (stages + latest + outcome)
+    case_progress = {}
+    case_sentiments = {}
+    for c in cases:
+        # جلب مراحل التسلسل الموجودة
+        stages = list(
+            c.timeline.values_list("stage", flat=True).distinct()
+        )
+        # التسجيل يعتبر دائمًا منجز للمستخدم (مرحلة عامة)
+        if "registered" not in stages:
+            stages = ["registered"] + stages
+
+        # أحدث حدث في التسلسل
+        latest = c.timeline.order_by("-created_at").first()
+        latest_stage = latest.stage if latest else "case_submitted"
+        latest_outcome = latest.outcome if latest else "pending"
+
+        # أحدث حكم لو موجود
+        latest_judgment = c.timeline.filter(stage="judgment").order_by("-created_at").first()
+        judgment_outcome = latest_judgment.outcome if latest_judgment else ""
+
+        case_progress[c.id] = {
+            "stages": stages,
+            "latest_stage": latest_stage,
+            "latest_outcome": latest_outcome,
+            "judgment_outcome": judgment_outcome,
+        }
+
+        # آخر تحليل مشاعر للعميل مرتبط بالقضية (آخر 1)
+        s = c.sentiments.filter(target="client").order_by("-created_at").first()
+        if s:
+            case_sentiments[c.id] = {
+                "label": s.label,
+                "score": s.score,
+                "created_at": s.created_at,
+            }
+
+    log_event(request, "view", meta="user_dashboard")
 
     return render(
         request,
@@ -272,10 +336,12 @@ def user_dashboard(request):
         {
             "profile": profile,
             "cases": cases,
-            "documents": request.user.documents.all(),
+            "documents": documents,
             "now": timezone.now(),
             "agreement": _get_latest_agreement(request.user),
-            "trails": trails,
+            "audit_events": audit_events,
+            "case_progress": case_progress,
+            "case_sentiments": case_sentiments,
         },
     )
 
@@ -298,11 +364,11 @@ def profile_update_view(request):
             address_raw = request.POST.get("address", "").strip()
             address = ""
             if address_raw:
-                address = validate_safe_text(address_raw, "address", max_len=1000, min_len=2)
+                address = validate_safe_multiline(address_raw, "address", max_len=1000, min_len=2)
 
         except ValidationError as e:
-            _log_event(request.user, "input_rejected", request, details=f"profile_rejected: {str(e)}")
             messages.error(request, str(e))
+            log_event(request, "security_block", meta=f"profile_validation:{str(e)}")
             return redirect("profile_update")
 
         profile.full_name = full_name
@@ -313,10 +379,11 @@ def profile_update_view(request):
             profile.id_card_image = request.FILES["id_card_image"]
 
         profile.save()
-        _trail(request.user, "profile_updated", ref=request.user.username, note="تحديث الملف")
+        log_event(request, "profile_update", meta="profile_updated")
         messages.success(request, "تم حفظ البيانات بنجاح")
         return redirect("user_dashboard")
 
+    log_event(request, "view", meta="profile_update")
     return render(request, "accounts/profile_form.html", {"profile": profile})
 
 
@@ -332,20 +399,20 @@ def case_create(request):
     if request.method == "POST":
         try:
             title = validate_safe_text(request.POST.get("title", ""), "case_title", max_len=255, min_len=3)
-            description = validate_safe_text(request.POST.get("description", ""), "case_description", max_len=3000, min_len=5)
+            description = validate_safe_multiline(request.POST.get("description", ""), "case_description", max_len=3000, min_len=5)
             case_type = (request.POST.get("case_type", "other") or "other").strip()
 
             allowed_case_types = {"civil", "criminal", "commercial", "family", "labor", "other"}
             case_type = validate_choice(case_type, allowed_case_types, "case_type")
 
         except ValidationError as e:
-            _log_event(request.user, "input_rejected", request, details=f"case_rejected: {str(e)}")
             messages.error(request, str(e))
+            log_event(request, "security_block", meta=f"case_validation:{str(e)}")
             return redirect("case_create")
 
         case_number = f"CASE-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
 
-        Case.objects.create(
+        case = Case.objects.create(
             user=request.user,
             case_number=case_number,
             case_type=case_type,
@@ -353,17 +420,47 @@ def case_create(request):
             description=description,
         )
 
-        _log_event(request.user, "case_created", request, details=f"case_number={case_number}")
-        _trail(request.user, "case_created", ref=case_number, note=title)
+        _ensure_master_folder_for_user(request.user)
+        _case_timeline_seed(case)
 
+        _save_sentiment(request.user, case, "client", f"{title}\n{description}")
+
+        log_event(request, "case_create", meta=f"case:{case.case_number}")
         messages.success(request, f"تم رفع القضية بنجاح (رقمها: {case_number})")
         return redirect("user_dashboard")
 
+    log_event(request, "view", meta="case_create")
     return render(request, "accounts/case_form.html")
 
 
 # --------------------------------------------------
-# Agreement View (🔒 مقفلة أثناء under_review)
+# Case Timeline View
+# --------------------------------------------------
+@login_required
+def case_timeline_view(request, case_id):
+    case = get_object_or_404(Case, id=case_id)
+
+    if case.user_id != request.user.id:
+        return HttpResponseForbidden("غير مصرح لك.")
+
+    timeline = case.timeline.all().order_by("created_at")
+    sentiments = case.sentiments.filter(target="client").order_by("-created_at")[:5]
+
+    log_event(request, "view", meta=f"case_timeline:{case.case_number}")
+
+    return render(
+        request,
+        "accounts/case_timeline.html",
+        {
+            "case": case,
+            "timeline": timeline,
+            "client_sentiments": sentiments,
+        },
+    )
+
+
+# --------------------------------------------------
+# Agreement View
 # --------------------------------------------------
 @login_required
 @csrf_protect
@@ -371,10 +468,10 @@ def agreement_view(request, token):
     agreement = get_object_or_404(UserAgreement, token=token)
 
     if agreement.user_id != request.user.id:
-        _log_event(request.user, "access_denied", request, details="agreement_foreign_token")
         return HttpResponseForbidden("غير مصرح لك بالوصول لهذه الاتفاقية.")
 
     if agreement.status == "under_review":
+        log_event(request, "view", meta="agreement_locked")
         return render(request, "accounts/agreement_locked.html", {"agreement": agreement})
 
     if agreement.is_completed:
@@ -387,20 +484,18 @@ def agreement_view(request, token):
         accept_checkbox = request.POST.get("accept_checkbox") == "on"
         signature_data = (request.POST.get("signature_data", "") or "").strip()
 
-        # ✅ Validate signature payload (base64-ish only)
         if signature_data:
             if "base64," in signature_data:
                 _, b64 = signature_data.split("base64,", 1)
             else:
                 b64 = signature_data
 
-            # whitelist base64 charset by removing known chars then validating remaining safe text length
+            cleaned = b64.replace("+", "").replace("/", "").replace("=", "")
             try:
-                compact = b64.replace("+", "").replace("/", "").replace("=", "").replace("\n", "").replace("\r", "")
-                validate_safe_text(compact, "signature_base64", max_len=200000, min_len=20)
+                validate_safe_text(cleaned, "signature_base64", max_len=200000, min_len=20)
             except ValidationError:
-                _log_event(request.user, "input_rejected", request, details="signature_invalid")
                 messages.error(request, "بيانات التوقيع غير صالحة.")
+                log_event(request, "security_block", meta="signature_invalid")
                 return redirect("agreement_view", token=agreement.token)
 
         if not accept_checkbox and not signature_data:
@@ -411,6 +506,7 @@ def agreement_view(request, token):
             agreement.accepted_checkbox = True
             agreement.accepted_at = timezone.now()
             agreement.status = "accepted"
+            log_event(request, "agreement_accept", meta=f"token:{agreement.token}")
 
         if signature_data:
             try:
@@ -424,9 +520,10 @@ def agreement_view(request, token):
                 agreement.signature_image.save(filename, ContentFile(decoded), save=False)
                 agreement.signed_at = timezone.now()
                 agreement.status = "signed"
+                log_event(request, "agreement_sign", meta=f"token:{agreement.token}")
             except Exception:
-                _log_event(request.user, "input_rejected", request, details="signature_save_failed")
                 messages.error(request, "تعذر حفظ التوقيع. جرّب مرة أخرى.")
+                log_event(request, "security_block", meta="signature_save_failed")
                 return redirect("agreement_view", token=agreement.token)
 
         if agreement.payment_required:
@@ -434,22 +531,21 @@ def agreement_view(request, token):
             request.user.account_status = "payment_pending"
             request.user.save(update_fields=["account_status"])
             agreement.save()
-            _trail(request.user, "agreement_signed", ref=agreement.token, note="بانتظار الدفع")
             return redirect("payment_page", token=agreement.token)
 
         request.user.account_status = "active"
         request.user.save(update_fields=["account_status"])
         agreement.save()
-        _trail(request.user, "agreement_signed", ref=agreement.token, note="بدون دفع")
 
         messages.success(request, "تم حفظ الموافقة/التوقيع بنجاح.")
         return redirect("user_dashboard")
 
+    log_event(request, "view", meta=f"agreement_view:{agreement.token}")
     return render(request, "accounts/agreement.html", {"agreement": agreement})
 
 
 # --------------------------------------------------
-# Payment Page (🔒 مسموح فقط عند payment_pending)
+# Payment Page
 # --------------------------------------------------
 @login_required
 @csrf_protect
@@ -457,7 +553,6 @@ def payment_page(request, token):
     agreement = get_object_or_404(UserAgreement, token=token)
 
     if agreement.user_id != request.user.id:
-        _log_event(request.user, "access_denied", request, details="payment_foreign_token")
         return HttpResponseForbidden("غير مصرح لك بالوصول.")
 
     if agreement.status != "payment_pending":
@@ -493,8 +588,8 @@ def payment_page(request, token):
         try:
             client_receipt = validate_receipt_code(client_receipt, "client_payment_receipt")
         except ValidationError as e:
-            _log_event(request.user, "input_rejected", request, details=f"receipt_rejected: {str(e)}")
             messages.error(request, str(e))
+            log_event(request, "security_block", meta=f"payment_receipt_invalid:{str(e)}")
             return redirect("payment_page", token=agreement.token)
 
         if not receipt_image:
@@ -518,13 +613,13 @@ def payment_page(request, token):
         agreement.status = "under_review"
         agreement.save()
 
-        _log_event(request.user, "payment_submitted", request, details=f"token={agreement.token}")
-        _trail(request.user, "payment_submitted", ref=agreement.token, note="تم رفع الإيصال")
-
+        log_event(request, "payment_submit", meta=f"token:{agreement.token} receipt:{client_receipt}")
         messages.success(request, "تم إرسال رقم الإيصال وصورته بنجاح. بانتظار موافقة المكتب.")
         return redirect("payment_pending_review", token=agreement.token)
 
     office_invoice_number = agreement.office_invoice_number or agreement.sadad_bill_number or "—"
+
+    log_event(request, "view", meta=f"payment_page:{agreement.token}")
 
     return render(
         request,
@@ -550,13 +645,18 @@ def payment_pending_review(request, token):
     agreement = get_object_or_404(UserAgreement, token=token)
 
     if agreement.user_id != request.user.id:
-        _log_event(request.user, "access_denied", request, details="pending_review_foreign_token")
         return HttpResponseForbidden("غير مصرح لك بالوصول.")
 
     if not agreement.client_payment_receipt or not agreement.client_receipt_image:
         return redirect("payment_page", token=agreement.token)
 
-    return render(request, "accounts/payment_pending_review.html", {"agreement": agreement})
+    log_event(request, "view", meta=f"payment_pending_review:{agreement.token}")
+
+    return render(
+        request,
+        "accounts/payment_pending_review.html",
+        {"agreement": agreement},
+    )
 
 
 # --------------------------------------------------
@@ -567,11 +667,12 @@ def payment_success(request, token):
     agreement = get_object_or_404(UserAgreement, token=token)
 
     if agreement.user_id != request.user.id:
-        _log_event(request.user, "access_denied", request, details="payment_success_foreign_token")
         return HttpResponseForbidden("غير مصرح لك بالوصول لهذه الصفحة.")
 
     if agreement.status != "paid":
         return redirect("payment_page", token=agreement.token)
+
+    log_event(request, "view", meta=f"payment_success:{agreement.token}")
 
     return render(request, "accounts/payment_success.html", {"agreement": agreement})
 
@@ -579,7 +680,6 @@ def payment_success(request, token):
 # ==================================================
 # 🟦 Master Views
 # ==================================================
-
 @staff_member_required
 def master_clients_list(request):
     q = (request.GET.get("q") or "").strip()
@@ -590,7 +690,6 @@ def master_clients_list(request):
             q_safe = validate_safe_text(q, "master_search", max_len=100, min_len=1)
         except ValidationError:
             q_safe = ""
-
         if q_safe:
             folders_qs = folders_qs.filter(
                 Q(user__username__icontains=q_safe) |
@@ -603,13 +702,12 @@ def master_clients_list(request):
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
+    log_event(request, "view", meta="master_clients_list")
+
     return render(
         request,
         "accounts/master/clients_list.html",
-        {
-            "q": q,
-            "page_obj": page_obj,
-        },
+        {"q": q, "page_obj": page_obj},
     )
 
 
@@ -630,6 +728,8 @@ def master_client_detail(request, folder_id):
     folder.messages.filter(direction="client", is_read=False).update(is_read=True)
 
     profile = UserProfile.objects.filter(user=folder.user).first()
+
+    log_event(request, "view", meta=f"master_client_detail:{folder.id}")
 
     return render(
         request,
@@ -653,10 +753,10 @@ def master_send_message(request, folder_id):
 
     body = (request.POST.get("message") or "").strip()
     try:
-        body = validate_safe_text(body, "master_message", max_len=1500, min_len=1)
+        body = validate_safe_multiline(body, "master_message", max_len=1500, min_len=1)
     except ValidationError as e:
-        _log_event(request.user, "input_rejected", request, details=f"master_msg_rejected: {str(e)}")
         messages.error(request, str(e))
+        log_event(request, "security_block", meta=f"master_message_invalid:{str(e)}")
         return redirect("master_client_detail", folder_id=folder.id)
 
     ClientMasterMessage.objects.create(
@@ -667,22 +767,28 @@ def master_send_message(request, folder_id):
         is_read=True,
     )
 
-    _log_event(request.user, "master_action", request, details=f"send_message_to={folder.user.username}")
+    try:
+        last_case = folder.user.account_cases.order_by("-created_at").first()
+        _save_sentiment(request.user, last_case, "lawyer", body)
+    except Exception:
+        pass
+
+    log_event(request, "master_message", meta=f"folder:{folder.id}")
     messages.success(request, "تم إرسال الرسالة للعميل.")
     return redirect("master_client_detail", folder_id=folder.id)
 
 
-# --------------------------------------------------
-# ✅ Master Events Dashboard (حل خطأ master_events_dashboard)
-# --------------------------------------------------
 @staff_member_required
 def master_events_dashboard(request):
-    """
-    لوحة أحداث أمنية + معاملات (Logging & Monitoring)
-    بدون تغيير أي UI موجود: مجرد صفحة جديدة
-    """
     q = (request.GET.get("q") or "").strip()
-    events = SecurityEvent.objects.select_related("user").all().order_by("-created_at")
+    et = (request.GET.get("type") or "").strip()
+
+    qs = AuditEvent.objects.select_related("user").all().order_by("-created_at")
+
+    if et:
+        allowed = {c[0] for c in AuditEvent.EVENT_TYPES}
+        if et in allowed:
+            qs = qs.filter(event_type=et)
 
     if q:
         try:
@@ -690,21 +796,25 @@ def master_events_dashboard(request):
         except ValidationError:
             q_safe = ""
         if q_safe:
-            events = events.filter(
+            qs = qs.filter(
                 Q(user__username__icontains=q_safe) |
-                Q(event_type__icontains=q_safe) |
-                Q(ip_address__icontains=q_safe) |
-                Q(path__icontains=q_safe)
+                Q(path__icontains=q_safe) |
+                Q(ip__icontains=q_safe)
             )
 
-    paginator = Paginator(events, 30)
-    page_obj = paginator.get_page(request.GET.get("page"))
+    paginator = Paginator(qs, 30)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    log_event(request, "view", meta="master_events_dashboard")
 
     return render(
         request,
         "accounts/master/events_dashboard.html",
         {
             "q": q,
+            "type": et,
             "page_obj": page_obj,
+            "types": AuditEvent.EVENT_TYPES,
         },
     )

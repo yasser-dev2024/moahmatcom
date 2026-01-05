@@ -61,29 +61,25 @@
           class="group bg-card rounded-3xl border border-black/10 p-5 hover:shadow-md transition"
         >
 
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <div class="text-lg font-extrabold group-hover:underline">
-                {{ folder.العميل.get_full_name|default:folder.العميل.username }}
-              </div>
-              <div class="text-xs opacity-70 mt-1">
-                {{ folder.العميل.email|default:"بدون بريد" }}
-              </div>
-            </div>
-
-            <div class="text-xs px-3 py-1 rounded-full bg-black/5">
-              ID: {{ folder.العميل_id }}
-            </div>
+          <h1 class="text-2xl font-extrabold">
+            {{ folder.user.get_full_name|default:folder.user.username }}
+          </h1>
+          <div class="text-sm opacity-70 mt-1">
+            {{ folder.user.email|default:"بدون بريد" }}
           </div>
 
           <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
             <div class="rounded-2xl bg-black/5 p-3">
               <div class="text-xs opacity-70">السجل المدني</div>
-              <div class="font-bold">{{ folder.السجل_المدني|default:"—" }}</div>
+              <div class="font-bold">
+                {{ folder.user.profile.national_id|default:"—" }}
+              </div>
             </div>
             <div class="rounded-2xl bg-black/5 p-3">
               <div class="text-xs opacity-70">الجوال</div>
-              <div class="font-bold">{{ folder.الهاتف|default:"—" }}</div>
+              <div class="font-bold">
+                {{ folder.user.phone_number|default:"—" }}
+              </div>
             </div>
           </div>
 

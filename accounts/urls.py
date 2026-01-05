@@ -16,6 +16,7 @@ urlpatterns = [
     path("dashboard/", views.user_dashboard, name="user_dashboard"),
     path("profile/", views.profile_update_view, name="profile_update"),
     path("case/create/", views.case_create, name="case_create"),
+    path("case/<int:case_id>/timeline/", views.case_timeline_view, name="case_timeline_view"),
 
     # ----------------------------------
     # Account Status
@@ -41,6 +42,8 @@ urlpatterns = [
     path("master/clients/<int:folder_id>/", views.master_client_detail, name="master_client_detail"),
     path("master/clients/<int:folder_id>/send-message/", views.master_send_message, name="master_send_message"),
 
-    # ✅ Events dashboard
+    # ==================================================
+    # 🟦 Master Events Dashboard (Fix missing attribute)
+    # ==================================================
     path("master/events/", views.master_events_dashboard, name="master_events_dashboard"),
 ]

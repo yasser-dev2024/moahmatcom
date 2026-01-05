@@ -1,95 +1,117 @@
 # accounts/security.py
 import re
 from django.core.exceptions import ValidationError
-from django.core.validators import validate_email as dj_validate_email
-from django.utils.html import escape
+from django.core.validators import validate_email as django_validate_email
 
 
-# --------------------------------------------------
-# Notes:
-# 1) Input Validation (Whitelisting): reject unknown/bad.
-# 2) Sanitization: optional normalization, not a security boundary.
-# 3) Output Encoding: ALWAYS encode on output (Django templates auto-escape by default).
-# --------------------------------------------------
+# ================================
+# Regex Whitelisting
+# ================================
+_USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{4,30}$")
+_PHONE_RE = re.compile(r"^[0-9]{9,15}$")
+_RECEIPT_RE = re.compile(r"^[A-Za-z0-9\-]{3,64}$")
+
+# نص آمن عام: عربي/إنجليزي/أرقام/مسافات وبعض العلامات البسيطة (بدون < > { } ; ` إلخ)
+# يسمح بـ . , - _ : / ( ) ؟ ! " ' + @ #
+_SAFE_TEXT_RE = re.compile(r"^[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FFA-Za-z0-9\s\.\,\-\_\:\(\)\/\?\!\u061F\"\'\+\@\#]{1,}$")
 
 
-USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{4,30}$")
-PHONE_RE = re.compile(r"^[0-9]{9,15}$")
-RECEIPT_RE = re.compile(r"^[A-Za-z0-9\-]{4,64}$")
-SAFE_TEXT_RE = re.compile(r"^[\s\u0600-\u06FFa-zA-Z0-9\.\,\:\;\-\_\(\)\[\]\!\?\@\#\/\\\n\r]+$")
-
-
-def _clean(s: str) -> str:
-    # Sanitization (non-security): trim + normalize newlines.
-    if s is None:
-        return ""
-    s = str(s)
-    s = s.replace("\r\n", "\n").replace("\r", "\n")
-    return s.strip()
+def _strip(v: str) -> str:
+    return (v or "").strip()
 
 
 def validate_username(value: str) -> str:
-    value = _clean(value)
-    if not value:
-        raise ValidationError("يرجى إدخال اسم المستخدم.")
-    if not USERNAME_RE.match(value):
-        raise ValidationError("اسم المستخدم غير صالح. استخدم أحرف/أرقام/underscore فقط (4-30).")
-    return value
+    v = _strip(value)
+    if not v:
+        return ""
+    if not _USERNAME_RE.match(v):
+        raise ValidationError("اسم المستخدم غير صالح. استخدم حروف/أرقام/underscore فقط (4-30).")
+    return v
 
 
 def validate_phone(value: str) -> str:
-    value = _clean(value)
-    if not value:
+    v = _strip(value)
+    if not v:
         return ""
-    # allow leading + then strip it
-    if value.startswith("+"):
-        value = value[1:]
-    if not PHONE_RE.match(value):
-        raise ValidationError("رقم الجوال غير صالح. أرقام فقط (9-15).")
-    return value
+    # تحويل عربي-هندي إلى أرقام إنجليزية إن وجدت (بشكل بسيط)
+    trans = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+    v = v.translate(trans)
+    if not _PHONE_RE.match(v):
+        raise ValidationError("رقم الجوال غير صالح. اكتب أرقام فقط (9-15).")
+    return v
 
 
 def validate_email_safe(value: str) -> str:
-    value = _clean(value)
-    if not value:
+    v = _strip(value)
+    if not v:
         return ""
-    try:
-        dj_validate_email(value)
-    except ValidationError:
-        raise ValidationError("البريد الإلكتروني غير صالح.")
-    if len(value) > 254:
+    django_validate_email(v)
+    if len(v) > 254:
         raise ValidationError("البريد الإلكتروني طويل جدًا.")
-    return value
+    return v
+
+
+def validate_choice(value: str, allowed: set[str], field_name: str = "choice") -> str:
+    v = _strip(value)
+    if v not in allowed:
+        raise ValidationError(f"قيمة غير صالحة في {field_name}.")
+    return v
 
 
 def validate_receipt_code(value: str, field_name: str = "receipt") -> str:
-    value = _clean(value)
-    if not value:
+    v = _strip(value)
+    if not v:
         raise ValidationError("رقم الإيصال مطلوب.")
-    if not RECEIPT_RE.match(value):
-        raise ValidationError("رقم الإيصال غير صالح. مسموح أحرف/أرقام/- فقط.")
-    return value
+    if not _RECEIPT_RE.match(v):
+        raise ValidationError("رقم الإيصال غير صالح. استخدم أحرف/أرقام/شرطة فقط.")
+    return v
 
 
-def validate_choice(value: str, allowed: set, field_name: str = "choice") -> str:
-    value = _clean(value)
-    if value not in allowed:
-        raise ValidationError(f"قيمة غير مسموحة في {field_name}.")
-    return value
+def validate_safe_text(value: str, field_name: str, *, max_len: int = 500, min_len: int = 1) -> str:
+    v = _strip(value)
+    if not v:
+        if min_len <= 0:
+            return ""
+        raise ValidationError(f"{field_name} مطلوب.")
+    if len(v) < min_len:
+        raise ValidationError(f"{field_name} قصير جدًا.")
+    if len(v) > max_len:
+        raise ValidationError(f"{field_name} طويل جدًا.")
+    # رفض واضح لأخطر الرموز/الأنماط
+    dangerous = ["<", ">", "{", "}", "`", ";", "/*", "*/", "<?", "?>", "javascript:", "onerror", "onload"]
+    low = v.lower()
+    if any(d in low for d in dangerous):
+        raise ValidationError(f"{field_name}: محتوى غير مسموح.")
+    if not _SAFE_TEXT_RE.match(v):
+        raise ValidationError(f"{field_name}: يحتوي رموز غير مسموحة.")
+    return v
 
 
-def validate_safe_text(value: str, field_name: str, max_len: int = 2000, min_len: int = 1) -> str:
-    value = _clean(value)
-    if min_len and len(value) < min_len:
-        raise ValidationError(f"الحقل {field_name} قصير جدًا.")
-    if max_len and len(value) > max_len:
-        raise ValidationError(f"الحقل {field_name} طويل جدًا.")
-    # Whitelisting for text fields: reject unexpected symbols/scripts.
-    if value and not SAFE_TEXT_RE.match(value):
-        raise ValidationError(f"الحقل {field_name} يحتوي رموز/نص غير مسموح.")
-    return value
+def validate_safe_multiline(value: str, field_name: str, *, max_len: int = 3000, min_len: int = 1) -> str:
+    """
+    نص متعدد الأسطر: نفس whitelist لكن يسمح بالأسطر الجديدة.
+    """
+    v = (value or "").strip()
+    if not v:
+        if min_len <= 0:
+            return ""
+        raise ValidationError(f"{field_name} مطلوب.")
+    if len(v) < min_len:
+        raise ValidationError(f"{field_name} قصير جدًا.")
+    if len(v) > max_len:
+        raise ValidationError(f"{field_name} طويل جدًا.")
 
+    # نفس رفض الأنماط الخطرة
+    dangerous = ["<", ">", "{", "}", "`", ";", "/*", "*/", "<?", "?>", "javascript:", "onerror", "onload"]
+    low = v.lower()
+    if any(d in low for d in dangerous):
+        raise ValidationError(f"{field_name}: محتوى غير مسموح.")
 
-def output_encode(text: str) -> str:
-    # Output Encoding (use if you ever output into HTML manually).
-    return escape(text or "")
+    # تحقق كل سطر على حدة
+    for line in v.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if not _SAFE_TEXT_RE.match(line):
+            raise ValidationError(f"{field_name}: يحتوي رموز غير مسموحة.")
+    return v
