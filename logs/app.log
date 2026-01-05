@@ -1,0 +1,12 @@
+[2026-01-05 11:14:17,902] INFO django.utils.autoreload - Watching for file changes with StatReloader
+[2026-01-05 11:14:28,411] INFO django.server - "GET / HTTP/1.1" 200 24292
+[2026-01-05 11:14:29,657] WARNING django.request - Not Found: /favicon.ico
+[2026-01-05 11:14:29,658] WARNING django.server - "GET /favicon.ico HTTP/1.1" 404 3168
+[2026-01-05 11:14:57,379] INFO django.server - "GET /accounts/dashboard/ HTTP/1.1" 200 11570
+[2026-01-05 11:15:13,347] INFO django.server - "POST /accounts/logout/ HTTP/1.1" 302 0
+[2026-01-05 11:15:13,361] INFO django.server - "GET / HTTP/1.1" 200 22928
+[2026-01-05 11:27:42,445] INFO django.server - "GET /accounts/login/ HTTP/1.1" 200 2673
+[2026-01-05 11:27:45,058] INFO django.server - "GET /accounts/register/ HTTP/1.1" 200 3724
+[2026-01-05 11:28:27,093] INFO django.utils.autoreload - C:\Users\Test2\mashromoahmecom\accounts\views.py changed, reloading.
+[2026-01-05 11:28:29,350] INFO django.utils.autoreload - Watching for file changes with StatReloader
+[2026-01-05 11:29:27,125] INFO django.utils.autoreload - C:\Users\Test2\mashromoahmecom\mashromoahmecom\settings.py changed, reloading.

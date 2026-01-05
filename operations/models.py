@@ -2,6 +2,11 @@ from django.db import models
 from django.conf import settings
 import uuid
 
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from django.apps import apps
+from django.utils import timezone
+
 
 class Case(models.Model):
     CASE_TYPES = [
@@ -66,3 +71,26 @@ class Case(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.case_number}"
+
+
+@receiver(post_save, sender=Case)
+def _audit_ops_case_created(sender, instance: Case, created: bool, **kwargs):
+    """
+    تسجيل حدث عند رفع قضية في operations بدون كسر الدائرة.
+    """
+    if not created:
+        return
+
+    try:
+        AuditEvent = apps.get_model("accounts", "AuditEvent")
+        AuditEvent.objects.create(
+            user=instance.user,
+            action="create_case_ops",
+            message="Case created in operations",
+            ip_address="",
+            user_agent="",
+            extra={"ops_case_id": instance.id, "case_number": str(instance.case_number)},
+            created_at=timezone.now(),
+        )
+    except Exception:
+        pass

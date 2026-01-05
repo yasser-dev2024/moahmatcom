@@ -1,0 +1,86 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>لوحة الأحداث</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: { extend: { fontFamily: { cairo: ['Cairo','sans-serif'] } } }
+    }
+  </script>
+</head>
+<body class="bg-[#F7F9FF] text-[#0F172A] font-cairo min-h-screen">
+
+  {% include "header.html" %}
+  <div class="h-[80px]"></div>
+
+  <main class="max-w-6xl mx-auto px-4 pb-12">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-extrabold">لوحة الأحداث</h1>
+        <p class="text-sm opacity-80">هنا يظهر سجل أمني ومعاملات مهمة (Login/Failed/Input Rejected/Access Denied...)</p>
+      </div>
+
+      <form method="get" class="w-full md:w-[420px]">
+        <div class="flex gap-2">
+          <input name="q" value="{{ q }}" placeholder="ابحث (username / event / ip / path)"
+                 class="w-full px-4 py-3 rounded-2xl border border-black/10 bg-white focus:outline-none focus:ring-2 focus:ring-black/10"/>
+          <button class="px-5 py-3 rounded-2xl bg-black text-white font-bold hover:opacity-90">بحث</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="bg-white border border-black/10 rounded-3xl overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-black text-white">
+            <tr>
+              <th class="p-3 text-right">الوقت</th>
+              <th class="p-3 text-right">المستخدم</th>
+              <th class="p-3 text-right">الحدث</th>
+              <th class="p-3 text-right">IP</th>
+              <th class="p-3 text-right">المسار</th>
+              <th class="p-3 text-right">تفاصيل</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in page_obj %}
+            <tr class="border-b border-black/5">
+              <td class="p-3 whitespace-nowrap">{{ e.created_at|date:"Y-m-d H:i" }}</td>
+              <td class="p-3">{{ e.user.username|default:"—" }}</td>
+              <td class="p-3">{{ e.get_event_type_display }}</td>
+              <td class="p-3">{{ e.ip_address|default:"—" }}</td>
+              <td class="p-3 break-all">{{ e.path|default:"—" }}</td>
+              <td class="p-3 break-words">{{ e.details|default:"—" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td class="p-6 text-center opacity-70" colspan="6">لا توجد أحداث بعد.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-center gap-2 mt-8">
+      {% if page_obj.has_previous %}
+        <a class="px-4 py-2 rounded-xl bg-white border border-black/10"
+           href="?q={{ q }}&page={{ page_obj.previous_page_number }}">السابق</a>
+      {% endif %}
+      <div class="text-sm opacity-80">صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}</div>
+      {% if page_obj.has_next %}
+        <a class="px-4 py-2 rounded-xl bg-white border border-black/10"
+           href="?q={{ q }}&page={{ page_obj.next_page_number }}">التالي</a>
+      {% endif %}
+    </div>
+  </main>
+
+  {% include "partials/sign_language_fixed.html" %}
+
+</body>
+</html>

@@ -3,7 +3,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.contrib.auth import get_user_model
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 from django.contrib.auth.decorators import login_required
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
@@ -12,6 +12,9 @@ from django.http import HttpResponseForbidden
 from django.views.decorators.csrf import csrf_protect
 from django.conf import settings
 from django.core.mail import mail_admins
+from django.core.paginator import Paginator
+from django.db.models import Q
+from django.contrib.admin.views.decorators import staff_member_required
 
 import uuid
 import base64
@@ -19,10 +22,67 @@ import logging
 from urllib.parse import quote
 from django.core.files.base import ContentFile
 
-from .models import UserProfile, Case, CaseReply, UserAgreement
+from .models import (
+    UserProfile,
+    Case,
+    CaseReply,
+    UserAgreement,
+    ClientMasterFolder,
+    ClientMasterMessage,
+    ClientMasterDocument,
+    SecurityEvent,
+    AccountTrail,
+)
+
+# ✅ طبقة الأمان (Whitelisting Server-Side)
+from .security import (
+    validate_username,
+    validate_phone,
+    validate_email_safe,
+    validate_safe_text,
+    validate_receipt_code,
+    validate_choice,
+)
+
+from .middleware import LoginLockoutMiddleware
+
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+
+
+# --------------------------------------------------
+# Helpers
+# --------------------------------------------------
+def _ip(request) -> str:
+    return (request.META.get("REMOTE_ADDR", "") or "").strip()[:64]
+
+
+def _log_event(user, event_type: str, request=None, details: str = ""):
+    try:
+        SecurityEvent.objects.create(
+            user=user if (user and getattr(user, "is_authenticated", False)) else None,
+            event_type=event_type,
+            ip_address=_ip(request) if request else None,
+            path=(request.path[:255] if request and request.path else None),
+            details=(details[:2000] if details else None),
+        )
+    except Exception:
+        # لا تكسر الموقع بسبب فشل logging
+        pass
+
+
+def _trail(user, action: str, ref: str = "", note: str = ""):
+    try:
+        if user and getattr(user, "is_authenticated", False):
+            AccountTrail.objects.create(
+                user=user,
+                action=action,
+                ref=(ref[:100] if ref else None),
+                note=(note[:255] if note else None),
+            )
+    except Exception:
+        pass
 
 
 # --------------------------------------------------
@@ -59,52 +119,38 @@ def _redirect_if_suspended(request, allow_dashboard=False):
 # --------------------------------------------------
 def register_view(request):
     if request.method == "POST":
-        username = request.POST.get("username", "").strip()
-        email = request.POST.get("email", "").strip()
-        phone_number = request.POST.get("phone_number", "").strip()
-        password1 = request.POST.get("password1")
-        password2 = request.POST.get("password2")
+        try:
+            username = validate_username(request.POST.get("username", ""))
+            email = validate_email_safe(request.POST.get("email", ""))
+            phone_number = validate_phone(request.POST.get("phone_number", ""))
 
-        if not username or not password1 or not password2:
-            messages.error(request, "يرجى تعبئة جميع الحقول المطلوبة")
-            return redirect("register")
+            password1 = request.POST.get("password1")
+            password2 = request.POST.get("password2")
 
-        if len(username) < 4:
-            messages.error(request, "اسم المستخدم يجب ألا يقل عن 4 أحرف")
-            return redirect("register")
+            if not username or not password1 or not password2:
+                raise ValidationError("يرجى تعبئة جميع الحقول المطلوبة")
 
-        if " " in username:
-            messages.error(request, "اسم المستخدم لا يجب أن يحتوي على مسافات")
-            return redirect("register")
+            if password1 != password2:
+                raise ValidationError("بيانات الدخول غير صحيحة")  # رسالة عامة (لا تفصح)
 
-        if User.objects.filter(username=username).exists():
-            messages.error(request, "اسم المستخدم مستخدم مسبقًا")
-            return redirect("register")
+            if len(password1) < 8:
+                raise ValidationError("كلمة المرور يجب ألا تقل عن 8 أحرف")
 
-        if email:
-            try:
+            if User.objects.filter(username=username).exists():
+                raise ValidationError("لا يمكن إتمام العملية. جرّب بيانات أخرى.")
+
+            if email:
                 validate_email(email)
-            except ValidationError:
-                messages.error(request, "البريد الإلكتروني غير صالح")
-                return redirect("register")
-            if User.objects.filter(email=email).exists():
-                messages.error(request, "البريد الإلكتروني مستخدم مسبقًا")
-                return redirect("register")
+                if User.objects.filter(email=email).exists():
+                    raise ValidationError("لا يمكن إتمام العملية. جرّب بيانات أخرى.")
 
-        if phone_number:
-            if not phone_number.isdigit():
-                messages.error(request, "رقم الجوال يجب أن يحتوي على أرقام فقط")
-                return redirect("register")
-            if User.objects.filter(phone_number=phone_number).exists():
-                messages.error(request, "رقم الجوال مستخدم مسبقًا")
-                return redirect("register")
+            if phone_number:
+                if User.objects.filter(phone_number=phone_number).exists():
+                    raise ValidationError("لا يمكن إتمام العملية. جرّب بيانات أخرى.")
 
-        if password1 != password2:
-            messages.error(request, "كلمتا المرور غير متطابقتين")
-            return redirect("register")
-
-        if len(password1) < 8:
-            messages.error(request, "كلمة المرور يجب ألا تقل عن 8 أحرف")
+        except ValidationError as e:
+            _log_event(None, "input_rejected", request, details=f"register_rejected: {str(e)}")
+            messages.error(request, str(e))
             return redirect("register")
 
         user = User.objects.create_user(
@@ -122,6 +168,9 @@ def register_view(request):
         except Exception:
             pass
 
+        _log_event(user, "login_success", request, details="auto_login_after_register")
+        _trail(user, "registered", ref=user.username, note="تم التسجيل")
+
         return redirect("index")
 
     return render(request, "accounts-templates/register.html")
@@ -132,11 +181,23 @@ def register_view(request):
 # --------------------------------------------------
 def login_view(request):
     if request.method == "POST":
-        username = request.POST.get("username", "").strip()
-        password = request.POST.get("password")
+        ip = _ip(request)
+        try:
+            username = validate_username(request.POST.get("username", ""))
+            password = request.POST.get("password") or ""
 
-        if not username or not password:
-            messages.error(request, "يرجى إدخال اسم المستخدم وكلمة المرور")
+            # ✅ Lockout
+            if LoginLockoutMiddleware.is_locked(ip, username):
+                _log_event(None, "login_failed", request, details=f"locked: {username}")
+                messages.error(request, "تم إيقاف محاولات الدخول مؤقتًا. حاول لاحقًا.")
+                return redirect("login")
+
+            if not username or not password:
+                raise ValidationError("بيانات الدخول غير صحيحة")  # رسالة عامة
+
+        except ValidationError as e:
+            _log_event(None, "login_failed", request, details=f"validation_failed: {str(e)}")
+            messages.error(request, "بيانات الدخول غير صحيحة")
             return redirect("login")
 
         user = authenticate(request, username=username, password=password)
@@ -147,11 +208,19 @@ def login_view(request):
             except Exception:
                 pass
 
+            # ✅ مسح lockout بعد نجاح الدخول
+            LoginLockoutMiddleware.clear(ip, username)
+
+            _log_event(user, "login_success", request, details="login_ok")
+
             if user.account_status in ("pending_agreement", "payment_pending"):
                 return redirect("user_dashboard")
 
             return redirect("index")
 
+        # ❌ فشل: سجّل وحسّب على lockout
+        LoginLockoutMiddleware.register_fail(ip, username)
+        _log_event(None, "login_failed", request, details=f"auth_failed: {username}")
         messages.error(request, "بيانات الدخول غير صحيحة")
         return redirect("login")
 
@@ -163,11 +232,13 @@ def login_view(request):
 # --------------------------------------------------
 @require_http_methods(["GET", "POST"])
 def logout_view(request):
+    user = request.user if request.user.is_authenticated else None
     try:
         logout(request)
         request.session.flush()
     except Exception:
         pass
+    _log_event(user, "logout", request, details="logout")
     return redirect("/")
 
 
@@ -192,6 +263,9 @@ def user_dashboard(request):
     profile = getattr(request.user, "profile", None)
     cases = request.user.account_cases.all().order_by("-created_at")
 
+    # ✅ Trails (مسارات المعاملات)
+    trails = request.user.account_trails.all().order_by("-created_at")[:50]
+
     return render(
         request,
         "accounts/dashboard.html",
@@ -201,6 +275,7 @@ def user_dashboard(request):
             "documents": request.user.documents.all(),
             "now": timezone.now(),
             "agreement": _get_latest_agreement(request.user),
+            "trails": trails,
         },
     )
 
@@ -217,18 +292,28 @@ def profile_update_view(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
     if request.method == "POST":
-        profile.full_name = request.POST.get("full_name", "").strip()
-        profile.national_id = request.POST.get("national_id", "").strip()
-        profile.address = request.POST.get("address", "").strip()
+        try:
+            full_name = validate_safe_text(request.POST.get("full_name", ""), "full_name", max_len=255, min_len=2)
+            national_id = validate_safe_text(request.POST.get("national_id", ""), "national_id", max_len=20, min_len=5)
+            address_raw = request.POST.get("address", "").strip()
+            address = ""
+            if address_raw:
+                address = validate_safe_text(address_raw, "address", max_len=1000, min_len=2)
+
+        except ValidationError as e:
+            _log_event(request.user, "input_rejected", request, details=f"profile_rejected: {str(e)}")
+            messages.error(request, str(e))
+            return redirect("profile_update")
+
+        profile.full_name = full_name
+        profile.national_id = national_id
+        profile.address = address
 
         if "id_card_image" in request.FILES:
             profile.id_card_image = request.FILES["id_card_image"]
 
-        if not profile.full_name or not profile.national_id:
-            messages.error(request, "الاسم الكامل والسجل المدني مطلوبان")
-            return redirect("profile_update")
-
         profile.save()
+        _trail(request.user, "profile_updated", ref=request.user.username, note="تحديث الملف")
         messages.success(request, "تم حفظ البيانات بنجاح")
         return redirect("user_dashboard")
 
@@ -245,12 +330,17 @@ def case_create(request):
         return redir
 
     if request.method == "POST":
-        title = request.POST.get("title", "").strip()
-        description = request.POST.get("description", "").strip()
-        case_type = request.POST.get("case_type", "other")
+        try:
+            title = validate_safe_text(request.POST.get("title", ""), "case_title", max_len=255, min_len=3)
+            description = validate_safe_text(request.POST.get("description", ""), "case_description", max_len=3000, min_len=5)
+            case_type = (request.POST.get("case_type", "other") or "other").strip()
 
-        if not title or not description:
-            messages.error(request, "عنوان القضية والوصف مطلوبان")
+            allowed_case_types = {"civil", "criminal", "commercial", "family", "labor", "other"}
+            case_type = validate_choice(case_type, allowed_case_types, "case_type")
+
+        except ValidationError as e:
+            _log_event(request.user, "input_rejected", request, details=f"case_rejected: {str(e)}")
+            messages.error(request, str(e))
             return redirect("case_create")
 
         case_number = f"CASE-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
@@ -262,6 +352,9 @@ def case_create(request):
             title=title,
             description=description,
         )
+
+        _log_event(request.user, "case_created", request, details=f"case_number={case_number}")
+        _trail(request.user, "case_created", ref=case_number, note=title)
 
         messages.success(request, f"تم رفع القضية بنجاح (رقمها: {case_number})")
         return redirect("user_dashboard")
@@ -278,17 +371,12 @@ def agreement_view(request, token):
     agreement = get_object_or_404(UserAgreement, token=token)
 
     if agreement.user_id != request.user.id:
+        _log_event(request.user, "access_denied", request, details="agreement_foreign_token")
         return HttpResponseForbidden("غير مصرح لك بالوصول لهذه الاتفاقية.")
 
-    # 🔒 قفل الاتفاقية أثناء مراجعة المكتب
     if agreement.status == "under_review":
-        return render(
-            request,
-            "accounts/agreement_locked.html",
-            {"agreement": agreement},
-        )
+        return render(request, "accounts/agreement_locked.html", {"agreement": agreement})
 
-    # لو مدفوع = فعل الحساب
     if agreement.is_completed:
         if request.user.account_status != "active":
             request.user.account_status = "active"
@@ -297,7 +385,23 @@ def agreement_view(request, token):
 
     if request.method == "POST":
         accept_checkbox = request.POST.get("accept_checkbox") == "on"
-        signature_data = request.POST.get("signature_data", "").strip()
+        signature_data = (request.POST.get("signature_data", "") or "").strip()
+
+        # ✅ Validate signature payload (base64-ish only)
+        if signature_data:
+            if "base64," in signature_data:
+                _, b64 = signature_data.split("base64,", 1)
+            else:
+                b64 = signature_data
+
+            # whitelist base64 charset by removing known chars then validating remaining safe text length
+            try:
+                compact = b64.replace("+", "").replace("/", "").replace("=", "").replace("\n", "").replace("\r", "")
+                validate_safe_text(compact, "signature_base64", max_len=200000, min_len=20)
+            except ValidationError:
+                _log_event(request.user, "input_rejected", request, details="signature_invalid")
+                messages.error(request, "بيانات التوقيع غير صالحة.")
+                return redirect("agreement_view", token=agreement.token)
 
         if not accept_checkbox and not signature_data:
             messages.error(request, "اختر الموافقة بالمربع أو قم بالتوقيع.")
@@ -321,6 +425,7 @@ def agreement_view(request, token):
                 agreement.signed_at = timezone.now()
                 agreement.status = "signed"
             except Exception:
+                _log_event(request.user, "input_rejected", request, details="signature_save_failed")
                 messages.error(request, "تعذر حفظ التوقيع. جرّب مرة أخرى.")
                 return redirect("agreement_view", token=agreement.token)
 
@@ -329,11 +434,13 @@ def agreement_view(request, token):
             request.user.account_status = "payment_pending"
             request.user.save(update_fields=["account_status"])
             agreement.save()
+            _trail(request.user, "agreement_signed", ref=agreement.token, note="بانتظار الدفع")
             return redirect("payment_page", token=agreement.token)
 
         request.user.account_status = "active"
         request.user.save(update_fields=["account_status"])
         agreement.save()
+        _trail(request.user, "agreement_signed", ref=agreement.token, note="بدون دفع")
 
         messages.success(request, "تم حفظ الموافقة/التوقيع بنجاح.")
         return redirect("user_dashboard")
@@ -350,13 +457,11 @@ def payment_page(request, token):
     agreement = get_object_or_404(UserAgreement, token=token)
 
     if agreement.user_id != request.user.id:
+        _log_event(request.user, "access_denied", request, details="payment_foreign_token")
         return HttpResponseForbidden("غير مصرح لك بالوصول.")
 
-    # 🔒 يمنع الدفع إذا كانت under_review أو غيرها
     if agreement.status != "payment_pending":
         return redirect("payment_pending_review", token=agreement.token)
-
-    # ====== بقية كود الدفع كما هو عندك بدون أي تغيير ======
 
     whatsapp_phone_international = "966531991910"
 
@@ -382,11 +487,14 @@ def payment_page(request, token):
     whatsapp_url = _build_whatsapp_url(whatsapp_text)
 
     if request.method == "POST":
-        client_receipt = request.POST.get("client_payment_receipt", "").strip()
+        client_receipt = (request.POST.get("client_payment_receipt", "") or "").strip()
         receipt_image = request.FILES.get("client_receipt_image")
 
-        if not client_receipt:
-            messages.error(request, "رقم إيصال الدفع مطلوب ولا يمكن الإرسال بدونه.")
+        try:
+            client_receipt = validate_receipt_code(client_receipt, "client_payment_receipt")
+        except ValidationError as e:
+            _log_event(request.user, "input_rejected", request, details=f"receipt_rejected: {str(e)}")
+            messages.error(request, str(e))
             return redirect("payment_page", token=agreement.token)
 
         if not receipt_image:
@@ -409,6 +517,9 @@ def payment_page(request, token):
         agreement.client_receipt_image = receipt_image
         agreement.status = "under_review"
         agreement.save()
+
+        _log_event(request.user, "payment_submitted", request, details=f"token={agreement.token}")
+        _trail(request.user, "payment_submitted", ref=agreement.token, note="تم رفع الإيصال")
 
         messages.success(request, "تم إرسال رقم الإيصال وصورته بنجاح. بانتظار موافقة المكتب.")
         return redirect("payment_pending_review", token=agreement.token)
@@ -439,16 +550,13 @@ def payment_pending_review(request, token):
     agreement = get_object_or_404(UserAgreement, token=token)
 
     if agreement.user_id != request.user.id:
+        _log_event(request.user, "access_denied", request, details="pending_review_foreign_token")
         return HttpResponseForbidden("غير مصرح لك بالوصول.")
 
     if not agreement.client_payment_receipt or not agreement.client_receipt_image:
         return redirect("payment_page", token=agreement.token)
 
-    return render(
-        request,
-        "accounts/payment_pending_review.html",
-        {"agreement": agreement},
-    )
+    return render(request, "accounts/payment_pending_review.html", {"agreement": agreement})
 
 
 # --------------------------------------------------
@@ -459,9 +567,144 @@ def payment_success(request, token):
     agreement = get_object_or_404(UserAgreement, token=token)
 
     if agreement.user_id != request.user.id:
+        _log_event(request.user, "access_denied", request, details="payment_success_foreign_token")
         return HttpResponseForbidden("غير مصرح لك بالوصول لهذه الصفحة.")
 
     if agreement.status != "paid":
         return redirect("payment_page", token=agreement.token)
 
     return render(request, "accounts/payment_success.html", {"agreement": agreement})
+
+
+# ==================================================
+# 🟦 Master Views
+# ==================================================
+
+@staff_member_required
+def master_clients_list(request):
+    q = (request.GET.get("q") or "").strip()
+
+    folders_qs = ClientMasterFolder.objects.select_related("user").all().order_by("-created_at")
+    if q:
+        try:
+            q_safe = validate_safe_text(q, "master_search", max_len=100, min_len=1)
+        except ValidationError:
+            q_safe = ""
+
+        if q_safe:
+            folders_qs = folders_qs.filter(
+                Q(user__username__icontains=q_safe) |
+                Q(user__email__icontains=q_safe) |
+                Q(national_id__icontains=q_safe) |
+                Q(user__phone_number__icontains=q_safe)
+            )
+
+    paginator = Paginator(folders_qs, 12)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    return render(
+        request,
+        "accounts/master/clients_list.html",
+        {
+            "q": q,
+            "page_obj": page_obj,
+        },
+    )
+
+
+@staff_member_required
+def master_client_detail(request, folder_id):
+    folder = get_object_or_404(
+        ClientMasterFolder.objects.select_related("user"),
+        id=folder_id
+    )
+
+    messages_qs = folder.messages.select_related("sender").all().order_by("-created_at")
+    docs_qs = folder.documents.select_related("uploaded_by").all().order_by("-created_at")
+
+    msg_paginator = Paginator(messages_qs, 15)
+    msg_page = request.GET.get("mpage")
+    msg_page_obj = msg_paginator.get_page(msg_page)
+
+    folder.messages.filter(direction="client", is_read=False).update(is_read=True)
+
+    profile = UserProfile.objects.filter(user=folder.user).first()
+
+    return render(
+        request,
+        "accounts/master/client_detail.html",
+        {
+            "folder": folder,
+            "profile": profile,
+            "msg_page_obj": msg_page_obj,
+            "docs": docs_qs,
+            "cases": folder.user.account_cases.all().order_by("-created_at"),
+            "agreements": folder.user.agreements.all().order_by("-created_at"),
+        },
+    )
+
+
+@staff_member_required
+@require_POST
+@csrf_protect
+def master_send_message(request, folder_id):
+    folder = get_object_or_404(ClientMasterFolder, id=folder_id)
+
+    body = (request.POST.get("message") or "").strip()
+    try:
+        body = validate_safe_text(body, "master_message", max_len=1500, min_len=1)
+    except ValidationError as e:
+        _log_event(request.user, "input_rejected", request, details=f"master_msg_rejected: {str(e)}")
+        messages.error(request, str(e))
+        return redirect("master_client_detail", folder_id=folder.id)
+
+    ClientMasterMessage.objects.create(
+        folder=folder,
+        sender=request.user,
+        direction="lawyer",
+        message=body,
+        is_read=True,
+    )
+
+    _log_event(request.user, "master_action", request, details=f"send_message_to={folder.user.username}")
+    messages.success(request, "تم إرسال الرسالة للعميل.")
+    return redirect("master_client_detail", folder_id=folder.id)
+
+
+# --------------------------------------------------
+# ✅ Master Events Dashboard (حل خطأ master_events_dashboard)
+# --------------------------------------------------
+@staff_member_required
+def master_events_dashboard(request):
+    """
+    لوحة أحداث أمنية + معاملات (Logging & Monitoring)
+    بدون تغيير أي UI موجود: مجرد صفحة جديدة
+    """
+    q = (request.GET.get("q") or "").strip()
+    events = SecurityEvent.objects.select_related("user").all().order_by("-created_at")
+
+    if q:
+        try:
+            q_safe = validate_safe_text(q, "events_search", max_len=80, min_len=1)
+        except ValidationError:
+            q_safe = ""
+        if q_safe:
+            events = events.filter(
+                Q(user__username__icontains=q_safe) |
+                Q(event_type__icontains=q_safe) |
+                Q(ip_address__icontains=q_safe) |
+                Q(path__icontains=q_safe)
+            )
+
+    paginator = Paginator(events, 30)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    return render(
+        request,
+        "accounts/master/events_dashboard.html",
+        {
+            "q": q,
+            "page_obj": page_obj,
+        },
+    )

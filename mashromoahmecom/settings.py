@@ -9,6 +9,7 @@ Clean, Secure & Ready for Expansion
 from pathlib import Path
 import os
 
+
 # --------------------------------------------------
 # BASE
 # --------------------------------------------------
@@ -72,6 +73,9 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
 
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+
+    # ✅ Security Add-ons (لا تغيّر التصميم)
+    'accounts.middleware.RateLimitMiddleware',
 ]
 
 
@@ -83,8 +87,6 @@ ROOT_URLCONF = 'mashromoahmecom.urls'
 
 # --------------------------------------------------
 # TEMPLATES
-# --------------------------------------------------
-# C:\Users\Test2\mashromoahmecom\templates
 # --------------------------------------------------
 TEMPLATES = [
     {
@@ -162,11 +164,7 @@ USE_TZ = True
 # STATIC FILES
 # --------------------------------------------------
 STATIC_URL = '/static/'
-
-# المكان الذي سيُجمع فيه static عند تنفيذ collectstatic
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-
-# مجلد التطوير
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
@@ -183,3 +181,58 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # DEFAULT PRIMARY KEY
 # --------------------------------------------------
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# ==================================================
+# ✅ Security Hardening (Production-Ready) — بدون كسر التطوير
+# ==================================================
+
+# Session Cookie protection
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+
+# Do NOT send session token in URL (Django doesn't by default)
+# SESSION_ENGINE stays default; can move to cache/db later.
+
+# HTTPS only in production
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+
+# ==================================================
+# ✅ Logging & Monitoring
+# ==================================================
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "[{asctime}] {levelname} {name} {message}",
+            "style": "{",
+        }
+    },
+    "handlers": {
+        "file_security": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": os.path.join(BASE_DIR, "security.log"),
+            "formatter": "verbose",
+        },
+        "console": {"class": "logging.StreamHandler", "formatter": "verbose"},
+    },
+    "loggers": {
+        "accounts": {
+            "handlers": ["file_security", "console"],
+            "level": "INFO",
+            "propagate": False,
+        }
+    },
+}

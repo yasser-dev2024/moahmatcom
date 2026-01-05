@@ -58,9 +58,6 @@ class User(AbstractUser):
         verbose_name="عميل"
     )
 
-    # --------------------------------------------------
-    # حالة الحساب
-    # --------------------------------------------------
     ACCOUNT_STATUS = [
         ("active", "مفعل"),
         ("pending_agreement", "معلّق بانتظار الاتفاقية"),
@@ -302,26 +299,29 @@ class CaseReply(models.Model):
         return f"رد على {self.case.case_number}"
 
 
-# --------------------------------------------------
-# ✅ قوالب الاتفاقيات (مكتبة الاتفاقيات)
-# --------------------------------------------------
-class AgreementTemplate(models.Model):
-    """
-    قوالب الاتفاقيات التي تُكتب مرة واحدة ثم يتم اختيارها عند إرسال اتفاقية لعميل.
-    """
+# ==================================================================
+# 🟦 ماستر العملاء (الإضافة المطلوبة فقط)
+# ==================================================================
 
-    title = models.CharField(
-        max_length=255,
-        verbose_name="عنوان الاتفاقية"
+class ClientMasterFolder(models.Model):
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="master_folder",
+        verbose_name="العميل"
     )
 
-    agreement_text = models.TextField(
-        verbose_name="نص الاتفاقية"
+    national_id = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        verbose_name="السجل المدني"
     )
 
-    is_active = models.BooleanField(
-        default=True,
-        verbose_name="مفعّلة"
+    notes = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="ملاحظات داخلية"
     )
 
     created_at = models.DateTimeField(
@@ -329,10 +329,112 @@ class AgreementTemplate(models.Model):
         verbose_name="تاريخ الإنشاء"
     )
 
-    updated_at = models.DateTimeField(
-        auto_now=True,
-        verbose_name="آخر تحديث"
+    class Meta:
+        verbose_name = "مجلد ماستر عميل"
+        verbose_name_plural = "مجلدات الماستر للعملاء"
+
+    def __str__(self):
+        return f"مجلد {self.user.username}"
+
+
+class ClientMasterMessage(models.Model):
+    DIRECTION = [
+        ("client", "من العميل"),
+        ("lawyer", "من المحامي"),
+    ]
+
+    folder = models.ForeignKey(
+        ClientMasterFolder,
+        on_delete=models.CASCADE,
+        related_name="messages",
+        verbose_name="مجلد العميل"
     )
+
+    sender = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="المرسل"
+    )
+
+    direction = models.CharField(
+        max_length=10,
+        choices=DIRECTION,
+        verbose_name="الاتجاه"
+    )
+
+    message = models.TextField(
+        verbose_name="نص الرسالة"
+    )
+
+    is_read = models.BooleanField(
+        default=False,
+        verbose_name="مقروءة"
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="تاريخ الإرسال"
+    )
+
+    class Meta:
+        verbose_name = "رسالة ماستر"
+        verbose_name_plural = "رسائل الماستر"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"رسالة - {self.folder.user.username}"
+
+
+class ClientMasterDocument(models.Model):
+    folder = models.ForeignKey(
+        ClientMasterFolder,
+        on_delete=models.CASCADE,
+        related_name="documents",
+        verbose_name="مجلد العميل"
+    )
+
+    title = models.CharField(
+        max_length=255,
+        verbose_name="اسم المستند"
+    )
+
+    file = models.FileField(
+        upload_to="clients/master_documents/",
+        verbose_name="الملف"
+    )
+
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="تم الرفع بواسطة"
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="تاريخ الرفع"
+    )
+
+    class Meta:
+        verbose_name = "مستند ماستر"
+        verbose_name_plural = "مستندات الماستر"
+
+    def __str__(self):
+        return self.title
+
+
+# --------------------------------------------------
+# قوالب الاتفاقيات
+# --------------------------------------------------
+class AgreementTemplate(models.Model):
+    title = models.CharField(max_length=255, verbose_name="عنوان الاتفاقية")
+    agreement_text = models.TextField(verbose_name="نص الاتفاقية")
+    is_active = models.BooleanField(default=True, verbose_name="مفعّلة")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاريخ الإنشاء")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="آخر تحديث")
 
     class Meta:
         verbose_name = "قالب اتفاقية"
@@ -372,7 +474,6 @@ class UserAgreement(models.Model):
         verbose_name="المستخدم"
     )
 
-    # ✅ ربط الاتفاقية بقضية (اختياري) لتجميع الإيصال ضمن مجلد القضية لاحقًا
     case = models.ForeignKey(
         Case,
         on_delete=models.SET_NULL,
@@ -382,7 +483,6 @@ class UserAgreement(models.Model):
         verbose_name="القضية المرتبطة"
     )
 
-    # ✅ ربط الاتفاقية المرسلة بقالب (اختياري)
     template = models.ForeignKey(
         AgreementTemplate,
         on_delete=models.SET_NULL,
@@ -422,16 +522,8 @@ class UserAgreement(models.Model):
         verbose_name="نص الاتفاقية"
     )
 
-    accepted_checkbox = models.BooleanField(
-        default=False,
-        verbose_name="موافقة (مربع)"
-    )
-
-    accepted_at = models.DateTimeField(
-        blank=True,
-        null=True,
-        verbose_name="تاريخ الموافقة"
-    )
+    accepted_checkbox = models.BooleanField(default=False, verbose_name="موافقة")
+    accepted_at = models.DateTimeField(blank=True, null=True, verbose_name="تاريخ الموافقة")
 
     signature_image = models.ImageField(
         upload_to="agreements/signatures/",
@@ -440,20 +532,10 @@ class UserAgreement(models.Model):
         verbose_name="صورة التوقيع"
     )
 
-    signed_at = models.DateTimeField(
-        blank=True,
-        null=True,
-        verbose_name="تاريخ التوقيع"
-    )
+    signed_at = models.DateTimeField(blank=True, null=True, verbose_name="تاريخ التوقيع")
 
-    payment_required = models.BooleanField(
-        default=True,
-        verbose_name="يتطلب دفع"
-    )
+    payment_required = models.BooleanField(default=True, verbose_name="يتطلب دفع")
 
-    # -------------------------------
-    # بيانات الدفع العامة
-    # -------------------------------
     payment_method = models.CharField(
         max_length=20,
         choices=PAYMENT_METHOD,
@@ -469,22 +551,18 @@ class UserAgreement(models.Model):
         null=True
     )
 
-    # ✅ هذا هو “رقم الفاتورة” الذي تريد أن يكون ثابت ويظهر للعميل
     office_invoice_number = models.CharField(
         "رقم الفاتورة (ثابت للمكتب)",
         max_length=64,
         blank=True,
-        null=True,
-        help_text="رقم ثابت تضعه من الأدمن ليظهر للعميل أثناء السداد."
+        null=True
     )
 
-    # ✅ هذا رقم الإيصال الذي يدخله العميل بعد الدفع (إجباري عند الإرسال)
     client_payment_receipt = models.CharField(
         "رقم إيصال العميل",
         max_length=64,
         blank=True,
-        null=True,
-        help_text="العميل يدخل رقم الإيصال بعد السداد/التحويل."
+        null=True
     )
 
     client_paid_at = models.DateTimeField(
@@ -493,7 +571,6 @@ class UserAgreement(models.Model):
         null=True
     )
 
-    # ✅ صورة الإيصال التي يرفعها العميل (إجباري حسب طلبك)
     client_receipt_image = models.ImageField(
         "صورة إيصال العميل",
         upload_to=upload_client_receipt_image,
@@ -511,8 +588,7 @@ class UserAgreement(models.Model):
         "رقم إيصال المكتب",
         max_length=64,
         blank=True,
-        null=True,
-        help_text="يولده المكتب بعد الاعتماد (اختياري)."
+        null=True
     )
 
     paid_at = models.DateTimeField(
@@ -528,15 +604,11 @@ class UserAgreement(models.Model):
         null=True
     )
 
-    # -------------------------------
-    # ✅ بيانات سداد (SADAD) - ثابتة ولا تقبل unique
-    # -------------------------------
     sadad_bill_number = models.CharField(
         "رقم فاتورة سداد (مرجعي)",
         max_length=32,
         blank=True,
-        null=True,
-        help_text="إن كنت تستخدم رقم سداد ثابت، اتركه هنا (لا يوجد منع تكرار)."
+        null=True
     )
 
     sadad_status = models.CharField(
@@ -557,9 +629,6 @@ class UserAgreement(models.Model):
         null=True
     )
 
-    # -------------------------------
-    # حالة الاتفاقية العامة
-    # -------------------------------
     status = models.CharField(
         max_length=30,
         choices=STATUS,
@@ -567,15 +636,8 @@ class UserAgreement(models.Model):
         verbose_name="حالة الاتفاقية"
     )
 
-    sent_at = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name="تاريخ الإرسال"
-    )
-
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name="تاريخ الإنشاء"
-    )
+    sent_at = models.DateTimeField(auto_now_add=True, verbose_name="تاريخ الإرسال")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاريخ الإنشاء")
 
     class Meta:
         verbose_name = "اتفاقية"
@@ -583,13 +645,12 @@ class UserAgreement(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"اتفاقية {self.user.username} - {self.get_status_display()}"
+        return f"اتفاقية {self.user.username}"
 
     def save(self, *args, **kwargs):
         if not self.token:
             self.token = get_random_string(48)
 
-        # ✅ لو تم اختيار قالب ولم يكن النص مكتوب: انسخ تلقائياً من القالب
         if self.template and (not self.agreement_text or self.agreement_text.strip() == ""):
             self.title = self.template.title
             self.agreement_text = self.template.agreement_text
@@ -605,3 +666,82 @@ class UserAgreement(models.Model):
                 and self.status in ("accepted", "signed")
             )
         )
+
+
+# ==================================================
+# ✅ Security/Audit Models (إضافة فقط بدون كسر)
+# ==================================================
+
+class SecurityEvent(models.Model):
+    """
+    سجل أمني مركزي (Logging & Monitoring):
+    - تسجيل الدخول/الخروج
+    - محاولات فاشلة
+    - إدخالات مرفوضة
+    - Access denied
+    """
+    EVENT_TYPES = [
+        ("login_success", "تسجيل دخول ناجح"),
+        ("login_failed", "محاولة دخول فاشلة"),
+        ("logout", "تسجيل خروج"),
+        ("input_rejected", "إدخال مرفوض"),
+        ("access_denied", "منع وصول"),
+        ("case_created", "إنشاء قضية"),
+        ("payment_submitted", "رفع إيصال دفع"),
+        ("master_action", "إجراء بالماستر"),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="security_events",
+        verbose_name="المستخدم"
+    )
+    event_type = models.CharField(max_length=30, choices=EVENT_TYPES, verbose_name="نوع الحدث")
+    ip_address = models.CharField(max_length=64, blank=True, null=True, verbose_name="IP")
+    path = models.CharField(max_length=255, blank=True, null=True, verbose_name="المسار")
+    details = models.TextField(blank=True, null=True, verbose_name="تفاصيل")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="الوقت")
+
+    class Meta:
+        verbose_name = "حدث أمني"
+        verbose_name_plural = "الأحداث الأمنية"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.get_event_type_display()} - {self.created_at:%Y-%m-%d %H:%M}"
+
+
+class AccountTrail(models.Model):
+    """
+    مسار معاملات المستخدم (Timeline/Trails) — يُستخدم لاحقًا لصفحة المستخدم.
+    """
+    ACTIONS = [
+        ("registered", "تسجيل حساب"),
+        ("profile_updated", "تحديث ملف"),
+        ("case_created", "رفع قضية"),
+        ("agreement_signed", "توقيع/موافقة اتفاقية"),
+        ("payment_submitted", "رفع إيصال دفع"),
+        ("status_changed", "تغيير حالة"),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="account_trails",
+        verbose_name="المستخدم"
+    )
+    action = models.CharField(max_length=30, choices=ACTIONS, verbose_name="الإجراء")
+    ref = models.CharField(max_length=100, blank=True, null=True, verbose_name="مرجع")
+    note = models.CharField(max_length=255, blank=True, null=True, verbose_name="ملاحظة")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="الوقت")
+
+    class Meta:
+        verbose_name = "مسار المستخدم"
+        verbose_name_plural = "مسارات المستخدم"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.get_action_display()}"

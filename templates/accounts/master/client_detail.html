@@ -1,0 +1,176 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ملف العميل</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { cairo: ['Cairo', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="bg-[#F7F9FF] text-[#0F172A] font-cairo min-h-screen">
+
+  {% include "header.html" %}
+  <div class="h-[80px]"></div>
+
+  <main class="max-w-6xl mx-auto px-4 pb-12">
+
+    <div class="flex flex-col lg:flex-row lg:items-start gap-4">
+
+      <!-- بطاقة بيانات العميل -->
+      <section class="bg-white border border-black/10 rounded-3xl p-6 flex-1">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h1 class="text-2xl font-extrabold">
+              {{ folder.العميل.get_full_name|default:folder.العميل.username }}
+            </h1>
+            <div class="text-sm opacity-70 mt-1">
+              {{ folder.العميل.email|default:"بدون بريد" }}
+            </div>
+          </div>
+          <a href="{% url 'master_clients_list' %}" class="px-4 py-2 rounded-2xl bg-black text-white font-bold hover:opacity-90">
+            رجوع للقائمة
+          </a>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
+          <div class="rounded-2xl bg-black/5 p-4">
+            <div class="text-xs opacity-70">السجل المدني</div>
+            <div class="font-extrabold">{{ folder.السجل_المدني|default:"—" }}</div>
+          </div>
+          <div class="rounded-2xl bg-black/5 p-4">
+            <div class="text-xs opacity-70">الجوال</div>
+            <div class="font-extrabold">{{ folder.الهاتف|default:"—" }}</div>
+          </div>
+          <div class="rounded-2xl bg-black/5 p-4">
+            <div class="text-xs opacity-70">User ID</div>
+            <div class="font-extrabold">{{ folder.العميل_id }}</div>
+          </div>
+        </div>
+
+        {% if folder.ملاحظات_داخلية %}
+          <div class="mt-4 rounded-2xl border border-black/10 p-4">
+            <div class="text-xs opacity-70 mb-1">ملاحظات داخلية</div>
+            <div class="text-sm leading-7">{{ folder.ملاحظات_داخلية }}</div>
+          </div>
+        {% endif %}
+
+        {% if latest_sentiment %}
+          <div class="mt-4 rounded-2xl border border-black/10 p-4">
+            <div class="text-xs opacity-70 mb-1">تحليل مشاعر آخر</div>
+            <div class="text-sm leading-7">
+              التصنيف: <strong>{{ latest_sentiment.get_label_display }}</strong>
+              — الدرجة: <strong>{{ latest_sentiment.score }}</strong>
+            </div>
+          </div>
+        {% endif %}
+      </section>
+
+      <!-- إرسال رسالة -->
+      <section class="bg-white border border-black/10 rounded-3xl p-6 w-full lg:w-[420px]">
+        <h2 class="text-lg font-extrabold mb-3">إرسال رسالة للعميل</h2>
+
+        {% if messages %}
+          <div class="space-y-2 mb-3">
+            {% for m in messages %}
+              <div class="text-sm p-3 rounded-2xl {% if m.tags == 'success' %}bg-green-50 border border-green-200{% else %}bg-red-50 border border-red-200{% endif %}">
+                {{ m }}
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'master_send_message' folder.id %}" class="space-y-3">
+          {% csrf_token %}
+          <textarea name="message" rows="6" placeholder="اكتب رسالتك هنا..."
+                    class="w-full px-4 py-3 rounded-2xl border border-black/10 focus:outline-none focus:ring-2 focus:ring-black/10"></textarea>
+          <button class="w-full px-5 py-3 rounded-2xl bg-black text-white font-extrabold hover:opacity-90">
+            إرسال
+          </button>
+        </form>
+      </section>
+
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
+
+      <!-- الرسائل -->
+      <section class="lg:col-span-2 bg-white border border-black/10 rounded-3xl p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-extrabold">الرسائل</h2>
+          <div class="text-xs opacity-70">آخر 15 رسالة لكل صفحة</div>
+        </div>
+
+        <div class="space-y-3">
+          {% for msg in msg_page_obj %}
+            <div class="rounded-2xl border border-black/10 p-4">
+              <div class="flex items-center justify-between gap-3">
+                <div class="text-sm font-bold">
+                  {% if msg.direction == 'client' %}
+                    من العميل
+                  {% else %}
+                    من المحامي
+                  {% endif %}
+                  <span class="text-xs opacity-60 font-normal">— {{ msg.created_at|date:"Y-m-d H:i" }}</span>
+                </div>
+              </div>
+              <div class="mt-2 text-sm leading-7 whitespace-pre-wrap">{{ msg.message }}</div>
+            </div>
+          {% empty %}
+            <div class="text-center text-sm opacity-70 p-6">لا توجد رسائل بعد.</div>
+          {% endfor %}
+        </div>
+
+        <div class="flex items-center justify-center gap-2 mt-6">
+          {% if msg_page_obj.has_previous %}
+            <a class="px-4 py-2 rounded-xl bg-white border border-black/10"
+               href="?mpage={{ msg_page_obj.previous_page_number }}">السابق</a>
+          {% endif %}
+          <div class="text-sm opacity-80">
+            صفحة {{ msg_page_obj.number }} من {{ msg_page_obj.paginator.num_pages }}
+          </div>
+          {% if msg_page_obj.has_next %}
+            <a class="px-4 py-2 rounded-xl bg-white border border-black/10"
+               href="?mpage={{ msg_page_obj.next_page_number }}">التالي</a>
+          {% endif %}
+        </div>
+      </section>
+
+      <!-- المستندات -->
+      <section class="bg-white border border-black/10 rounded-3xl p-6">
+        <h2 class="text-lg font-extrabold mb-4">المستندات</h2>
+
+        <div class="space-y-3">
+          {% for d in docs %}
+            <a href="{{ d.file.url }}" target="_blank"
+               class="block rounded-2xl border border-black/10 p-4 hover:shadow-sm transition">
+              <div class="font-bold text-sm">{{ d.title }}</div>
+              <div class="text-xs opacity-70 mt-1">
+                {{ d.created_at|date:"Y-m-d H:i" }}
+                {% if d.uploaded_by %} — رفعه: {{ d.uploaded_by.username }}{% endif %}
+              </div>
+            </a>
+          {% empty %}
+            <div class="text-center text-sm opacity-70 p-6">لا توجد مستندات بعد.</div>
+          {% endfor %}
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  {% include "partials/sign_language_fixed.html" %}
+</body>
+</html>
