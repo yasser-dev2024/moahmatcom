@@ -188,6 +188,104 @@
 
   </div>
 
+  <!-- ===================================================== -->
+  <!-- ✅ إضافة جديدة: التواصل مع المكتب (رسائل الماستر) -->
+  <!-- ===================================================== -->
+  <div class="bg-card rounded-3xl p-6 sm:p-8 space-y-6 border border-white/10">
+
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <h2 class="text-xl font-bold text-gold">💬 التواصل مع المكتب</h2>
+      <p class="text-xs text-gray-400">هنا تشوف رسائل المكتب وتقدر ترد عليهم.</p>
+    </div>
+
+    {% if master_flash_messages %}
+      <div class="space-y-2">
+        {% for m in master_flash_messages %}
+          <div class="text-sm p-3 rounded-xl border
+            {% if m.tags == 'success' %}
+              bg-green-900/20 border-green-500/30 text-green-200
+            {% else %}
+              bg-red-900/20 border-red-500/30 text-red-200
+            {% endif %}
+          ">
+            {{ m }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <!-- صندوق الرسائل -->
+    <div class="bg-dark rounded-2xl border border-white/10 p-4 max-h-[420px] overflow-y-auto space-y-3">
+
+      {% if master_msg_page_obj %}
+        {% for msg in master_msg_page_obj %}
+          <div class="rounded-xl p-4 border
+            {% if msg.direction == 'lawyer' %}
+              bg-card border-gold/25
+            {% else %}
+              bg-dark border-white/10
+            {% endif %}
+          ">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm font-bold">
+                {% if msg.direction == 'lawyer' %}من المكتب{% else %}منك{% endif %}
+              </p>
+              <p class="text-xs text-gray-400">{{ msg.created_at|date:"Y-m-d H:i" }}</p>
+            </div>
+            <p class="text-sm text-gray-200 leading-relaxed mt-2 whitespace-pre-wrap">
+              {{ msg.message }}
+            </p>
+          </div>
+        {% empty %}
+          <p class="text-sm text-gray-400">لا توجد رسائل بعد.</p>
+        {% endfor %}
+      {% else %}
+        <p class="text-sm text-gray-400">لا توجد رسائل بعد.</p>
+      {% endif %}
+
+    </div>
+
+    <!-- ترقيم صفحات الرسائل -->
+    {% if master_msg_page_obj %}
+      <div class="flex items-center justify-center gap-2">
+        {% if master_msg_page_obj.has_previous %}
+          <a class="px-4 py-2 rounded-xl bg-dark border border-white/10 hover:border-gold/40"
+             href="?mmsg={{ master_msg_page_obj.previous_page_number }}">
+            السابق
+          </a>
+        {% endif %}
+
+        <div class="text-sm text-gray-400">
+          صفحة {{ master_msg_page_obj.number }} من {{ master_msg_page_obj.paginator.num_pages }}
+        </div>
+
+        {% if master_msg_page_obj.has_next %}
+          <a class="px-4 py-2 rounded-xl bg-dark border border-white/10 hover:border-gold/40"
+             href="?mmsg={{ master_msg_page_obj.next_page_number }}">
+            التالي
+          </a>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <!-- إرسال رسالة للمكتب -->
+    <form method="post" action="{% url 'client_send_message' %}" class="space-y-3">
+      {% csrf_token %}
+      <textarea
+        name="message"
+        rows="5"
+        required
+        placeholder="اكتب رسالتك للمكتب هنا..."
+        class="w-full px-4 py-3 rounded-2xl bg-dark border border-white/10 focus:outline-none focus:ring-2 focus:ring-gold/30"
+      ></textarea>
+
+      <button class="w-full sm:w-auto bg-gold text-black px-8 py-3 rounded-xl font-bold hover:opacity-90 transition">
+        إرسال
+      </button>
+    </form>
+
+  </div>
+
   <!-- ===== القضايا ===== -->
   <div class="bg-card rounded-3xl p-6 sm:p-8 space-y-6 border border-white/10">
 

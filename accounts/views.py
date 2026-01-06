@@ -275,6 +275,7 @@ def account_suspended(request):
 
 # --------------------------------------------------
 # Dashboard (✅ تم توسيعه لعرض كل معاملات المستخدم ومساراته + التقدم + المشاعر)
+# + ✅ (NEW) عرض رسائل الماستر للعميل + إرسال رسالة للمكتب
 # --------------------------------------------------
 @login_required
 def user_dashboard(request):
@@ -295,20 +296,14 @@ def user_dashboard(request):
     case_progress = {}
     case_sentiments = {}
     for c in cases:
-        # جلب مراحل التسلسل الموجودة
-        stages = list(
-            c.timeline.values_list("stage", flat=True).distinct()
-        )
-        # التسجيل يعتبر دائمًا منجز للمستخدم (مرحلة عامة)
+        stages = list(c.timeline.values_list("stage", flat=True).distinct())
         if "registered" not in stages:
             stages = ["registered"] + stages
 
-        # أحدث حدث في التسلسل
         latest = c.timeline.order_by("-created_at").first()
         latest_stage = latest.stage if latest else "case_submitted"
         latest_outcome = latest.outcome if latest else "pending"
 
-        # أحدث حكم لو موجود
         latest_judgment = c.timeline.filter(stage="judgment").order_by("-created_at").first()
         judgment_outcome = latest_judgment.outcome if latest_judgment else ""
 
@@ -319,7 +314,6 @@ def user_dashboard(request):
             "judgment_outcome": judgment_outcome,
         }
 
-        # آخر تحليل مشاعر للعميل مرتبط بالقضية (آخر 1)
         s = c.sentiments.filter(target="client").order_by("-created_at").first()
         if s:
             case_sentiments[c.id] = {
@@ -327,6 +321,22 @@ def user_dashboard(request):
                 "score": s.score,
                 "created_at": s.created_at,
             }
+
+    # --------------------------------------------------
+    # ✅ NEW: رسائل الماستر للعميل + Pagination + Mark read
+    # --------------------------------------------------
+    _ensure_master_folder_for_user(request.user)
+    folder = getattr(request.user, "master_folder", None)
+
+    master_msg_page_obj = None
+    if folder:
+        master_messages_qs = folder.messages.select_related("sender").all().order_by("-created_at")
+        master_msg_paginator = Paginator(master_messages_qs, 12)
+        mmsg_page = request.GET.get("mmsg")
+        master_msg_page_obj = master_msg_paginator.get_page(mmsg_page)
+
+        # تعليم رسائل المكتب كمقروءة عند فتح الداشبورد
+        folder.messages.filter(direction="lawyer", is_read=False).update(is_read=True)
 
     log_event(request, "view", meta="user_dashboard")
 
@@ -342,8 +352,60 @@ def user_dashboard(request):
             "audit_events": audit_events,
             "case_progress": case_progress,
             "case_sentiments": case_sentiments,
+
+            # ✅ NEW context for dashboard messaging section
+            "master_msg_page_obj": master_msg_page_obj,
+            # هذا متغير اختياري لو تبغى تعرض رسائل Django في مربع مستقل بالتمبلت
+            "master_flash_messages": messages.get_messages(request),
         },
     )
+
+
+# --------------------------------------------------
+# ✅ NEW: Client sends message to office (master folder)
+# --------------------------------------------------
+@login_required
+@require_POST
+@csrf_protect
+def client_send_message(request):
+    redir = _redirect_if_suspended(request, allow_dashboard=True)
+    if redir:
+        return redir
+
+    _ensure_master_folder_for_user(request.user)
+    folder = getattr(request.user, "master_folder", None)
+    if not folder:
+        messages.error(request, "تعذر فتح ملف التواصل. حاول مرة أخرى.")
+        log_event(request, "security_block", meta="client_send_message:no_folder")
+        return redirect("user_dashboard")
+
+    body = (request.POST.get("message") or "").strip()
+    try:
+        body = validate_safe_multiline(body, "client_message", max_len=1500, min_len=1)
+    except ValidationError as e:
+        messages.error(request, str(e))
+        log_event(request, "security_block", meta=f"client_message_invalid:{str(e)}")
+        return redirect("user_dashboard")
+
+    ClientMasterMessage.objects.create(
+        folder=folder,
+        sender=request.user,
+        direction="client",
+        message=body,
+        is_read=False,  # المكتب ما قرأها بعد
+    )
+
+    # ربط تحليل مشاعر برسالة العميل على آخر قضية (لو موجودة)
+    try:
+        last_case = request.user.account_cases.order_by("-created_at").first()
+        if last_case:
+            _save_sentiment(request.user, last_case, "client", body)
+    except Exception:
+        pass
+
+    log_event(request, "client_message", meta=f"folder:{folder.id}")
+    messages.success(request, "تم إرسال رسالتك للمكتب.")
+    return redirect("user_dashboard")
 
 
 # --------------------------------------------------
@@ -729,6 +791,12 @@ def master_client_detail(request, folder_id):
 
     profile = UserProfile.objects.filter(user=folder.user).first()
 
+    # ✅ NEW: عرض أحداث العميل داخل صفحة الماستر
+    client_events_qs = AuditEvent.objects.filter(user=folder.user).order_by("-created_at")
+    client_events_paginator = Paginator(client_events_qs, 30)
+    ev_page = request.GET.get("epage")
+    client_audit_page_obj = client_events_paginator.get_page(ev_page)
+
     log_event(request, "view", meta=f"master_client_detail:{folder.id}")
 
     return render(
@@ -741,6 +809,9 @@ def master_client_detail(request, folder_id):
             "docs": docs_qs,
             "cases": folder.user.account_cases.all().order_by("-created_at"),
             "agreements": folder.user.agreements.all().order_by("-created_at"),
+
+            # ✅ NEW context
+            "client_audit_page_obj": client_audit_page_obj,
         },
     )
 
@@ -775,6 +846,59 @@ def master_send_message(request, folder_id):
 
     log_event(request, "master_message", meta=f"folder:{folder.id}")
     messages.success(request, "تم إرسال الرسالة للعميل.")
+    return redirect("master_client_detail", folder_id=folder.id)
+
+
+# --------------------------------------------------
+# ✅ NEW: Master uploads document for the client (secure)
+# --------------------------------------------------
+@staff_member_required
+@require_POST
+@csrf_protect
+def master_upload_document(request, folder_id):
+    folder = get_object_or_404(ClientMasterFolder, id=folder_id)
+
+    title = (request.POST.get("title") or "").strip()
+    file_obj = request.FILES.get("file")
+
+    try:
+        title = validate_safe_text(title or "مرفق", "doc_title", max_len=120, min_len=1)
+    except ValidationError as e:
+        messages.error(request, str(e))
+        log_event(request, "security_block", meta=f"master_doc_title_invalid:{str(e)}")
+        return redirect("master_client_detail", folder_id=folder.id)
+
+    if not file_obj:
+        messages.error(request, "الملف مطلوب.")
+        return redirect("master_client_detail", folder_id=folder.id)
+
+    allowed_content_types = {
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+    }
+    content_type = getattr(file_obj, "content_type", "") or ""
+    if content_type not in allowed_content_types:
+        messages.error(request, "نوع الملف غير مدعوم. المسموح: PDF / JPG / PNG / WEBP.")
+        log_event(request, "security_block", meta=f"master_doc_blocked_type:{content_type}")
+        return redirect("master_client_detail", folder_id=folder.id)
+
+    max_size_mb = 12
+    if file_obj.size > max_size_mb * 1024 * 1024:
+        messages.error(request, f"حجم الملف كبير. الحد الأقصى {max_size_mb}MB.")
+        log_event(request, "security_block", meta=f"master_doc_too_large:{file_obj.size}")
+        return redirect("master_client_detail", folder_id=folder.id)
+
+    ClientMasterDocument.objects.create(
+        folder=folder,
+        title=title,
+        file=file_obj,
+        uploaded_by=request.user,
+    )
+
+    log_event(request, "master_document_upload", meta=f"folder:{folder.id} title:{title}")
+    messages.success(request, "تم رفع المرفق للعميل بنجاح.")
     return redirect("master_client_detail", folder_id=folder.id)
 
 

@@ -1,40 +1,18 @@
-"""
-URL configuration for mashromoahmecom project.
-"""
-
 from django.contrib import admin
 from django.urls import path, include
-from django.conf import settings
-from django.conf.urls.static import static
-
-# 🔴 التعديل هنا فقط
-from legal.views import home as index  # الصفحة الرئيسية (تعرض الخدمات)
-
+from accounts import views as accounts_views
 
 urlpatterns = [
-    # الصفحة الرئيسية
-    path('', index, name='index'),
+    path("admin/", admin.site.urls),
 
-    # Admin
-    path('admin/', admin.site.urls),
+    path("accounts/", include("accounts.urls")),
+    path("", include("legal.urls")),
+    path("", include("operations.urls")),
 
-    # Project Apps
-    path('accounts/', include('accounts.urls')),
-    path('legal/', include('legal.urls')),
-    path('operations/', include('operations.urls')),
+    # 🔴 هذا السطر إلزامي
+    path(
+        "client/send-message/",
+        accounts_views.client_send_message,
+        name="client_send_message",
+    ),
 ]
-
-
-# --------------------------------------------------
-# MEDIA & STATIC (Development Only)
-# --------------------------------------------------
-if settings.DEBUG:
-    urlpatterns += static(
-        settings.MEDIA_URL,
-        document_root=settings.MEDIA_ROOT
-    )
-
-    urlpatterns += static(
-        settings.STATIC_URL,
-        document_root=settings.STATIC_ROOT
-    )
